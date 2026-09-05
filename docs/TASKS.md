@@ -10,12 +10,12 @@ The emphasis is on resolving the open technical decisions with measurements befo
 
 ## 1. Establish the project baseline
 
-- [ ] Create the initial Rust crate and repository structure.
-- [ ] Add basic development commands through `mise` where useful.
-- [ ] Establish release-build settings suitable for latency benchmarking.
-- [ ] Add a minimal CI workflow for formatting, linting, tests, and release builds.
-- [ ] Add representative test fixtures for directory histories and query cases.
-- [ ] Keep the shell integration separate from the Rust core from the beginning.
+- [x] Create the initial Rust crate and repository structure.
+- [x] Add basic development commands through `mise` where useful.
+- [x] Establish release-build settings suitable for latency benchmarking.
+- [x] Add a minimal CI workflow for formatting, linting, tests, and release builds.
+- [x] Add representative test fixtures for directory histories and query cases.
+- [x] Keep the shell integration separate from the Rust core from the beginning.
 
 ### Deliverable
 

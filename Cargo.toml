@@ -1,0 +1,12 @@
+[package]
+name = "zfz"
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.85"
+description = "A Fish-native directory jumper with fuzzy matching"
+license = "MIT"
+
+[profile.release]
+codegen-units = 1
+lto = "thin"
+strip = "symbols"

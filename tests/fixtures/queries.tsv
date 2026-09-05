@@ -1,0 +1,7 @@
+# terms\texpected_observation
+docs\tcontiguous and case behaviour candidate
+dcs\tnon-contiguous ordered match candidate
+sdoc\tout-of-order characters must be rejected
+docs proj\tmultiple terms require matches without requiring term order
+proj docs\tterm order is independently observable for ranking experiments
+space\tpaths containing whitespace remain valid candidates

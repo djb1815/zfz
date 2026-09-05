@@ -12,3 +12,7 @@ run = [
   "cargo clippy --all-targets --all-features -- -D warnings",
   "cargo test",
 ]
+
+[tasks.build-release]
+description = "Build an optimised release binary"
+run = "cargo build --release"

@@ -1,0 +1,7 @@
+# Rust build output
+/target/
+
+# Local environment and editor files
+/.mise.local.toml
+.DS_Store
+*.swp
