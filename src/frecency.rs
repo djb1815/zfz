@@ -71,6 +71,9 @@ pub fn half_life(lambda: f64) -> f64 {
 
 #[cfg(test)]
 mod tests {
+    use pretty_assertions::assert_eq;
+    use rstest::rstest;
+
     use super::{DEFAULT_LAMBDA, Record, first_visit, half_life};
 
     const EPSILON: f64 = 1e-12;
@@ -109,14 +112,19 @@ mod tests {
         assert_close(updated.score, 2.5 * (-DEFAULT_LAMBDA * 5.0).exp() + 1.0);
     }
 
-    #[test]
-    fn current_score_decays_with_navigation_events_not_wall_time() {
+    #[rstest]
+    #[case(10, 0)]
+    #[case(20, 10)]
+    #[case(100, 90)]
+    fn current_score_reflects_elapsed_navigation_events(
+        #[case] current_tick: u64,
+        #[case] elapsed_ticks: u64,
+    ) {
         let record = first_visit(10);
 
-        assert_close(record.score_at(10, DEFAULT_LAMBDA), 1.0);
         assert_close(
-            record.score_at(20, DEFAULT_LAMBDA),
-            (-DEFAULT_LAMBDA * 10.0).exp(),
+            record.score_at(current_tick, DEFAULT_LAMBDA),
+            (-DEFAULT_LAMBDA * elapsed_ticks as f64).exp(),
         );
     }
 

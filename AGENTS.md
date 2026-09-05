@@ -37,9 +37,11 @@ canonicalising them, as required by the design.
 
 Add focused unit tests next to logic and integration tests in `tests/` for CLI
 and Fish-facing behaviour. Name tests after observable outcomes, such as
-`multiple_terms_require_all_matches`. Cover ordered-character matching,
-ranking modes, unusual path contents, persistence failures, and concurrent
-updates where relevant. Run `mise run check` before submitting changes.
+`multiple_terms_require_all_matches`. Prefer parameterised tests with `rstest`
+when multiple examples exercise the same behaviour. Cover ordered-character
+matching, ranking modes, unusual path contents, persistence failures, and
+concurrent updates where relevant. Run `mise run check` before submitting
+changes.
 
 ## Commit & Pull Request Guidelines
 
