@@ -27,13 +27,13 @@ A small buildable Rust project with enough structure to support benchmarks and p
 
 The initial ranking model should be based on the current `ze` scoring/decay behavior.
 
-- [ ] Inspect the current `ze` implementation and documentation.
-- [ ] Confirm the exact score update formula.
-- [ ] Confirm the decay formula and effective half-life.
-- [ ] Determine the minimum per-directory state required for incremental updates.
-- [ ] Confirm how frequency-only (`--rank`) and recency-only (`--time`) modes can be derived.
-- [ ] Review licensing and determine what may be reused directly versus independently implemented.
-- [ ] Encode the resulting behavior in focused unit tests.
+- [x] Inspect the current `ze` implementation and documentation.
+- [x] Confirm the exact score update formula.
+- [x] Confirm the decay formula and effective half-life.
+- [x] Determine the minimum per-directory state required for incremental updates.
+- [x] Confirm how frequency-only (`--rank`) and recency-only (`--time`) modes can be derived.
+- [x] Review licensing and determine what may be reused directly versus independently implemented.
+- [x] Encode the resulting behavior in focused unit tests.
 
 ### Deliverable
 

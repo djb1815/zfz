@@ -45,9 +45,12 @@ updates where relevant. Run `mise run check` before submitting changes.
 
 History currently uses short, imperative summaries (for example, `Initial
 commit of design doc & toolchain setup`); continue with concise imperative
-subjects. Keep commits focused. Pull requests should explain the behaviour
-changed, link relevant issues or design sections, include test results, and
-show terminal output or screenshots when the Fish user experience changes.
+subjects. For substantive changes, add a commit body explaining the motivation,
+key implementation choices, and validation performed, so the history remains
+useful without reopening the diff. Keep commits focused. Pull requests should
+explain the behaviour changed, link relevant issues or design sections, include
+test results, and show terminal output or screenshots when the Fish user
+experience changes.
 
 ## Documentation Changes
 
