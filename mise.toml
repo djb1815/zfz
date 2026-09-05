@@ -1,0 +1,14 @@
+[tools]
+rust = { version = "stable", profile = "minimal", components = [
+  "rustfmt",
+  "clippy",
+  "rust-src",
+  "rust-analyzer",
+] }
+
+[tasks.check]
+run = [
+  "cargo fmt --check",
+  "cargo clippy --all-targets --all-features -- -D warnings",
+  "cargo test",
+]
