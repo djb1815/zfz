@@ -1,0 +1,57 @@
+# Repository Guidelines
+
+## Project Structure & Module Organization
+
+`zfz` is a design-first Rust project for a Fish-native directory jumper; the
+user-facing Fish command will be `z`. `docs/DESIGN.md` is the source of truth
+for confirmed design substance. Keep planned work in `docs/TASKS.md` and add
+separate documents under `docs/` for benchmarks and other research. Rust
+implementation code should live in `src/`, integration code in a clearly named
+Fish directory (for example, `fish/`), and tests in `tests/` when they are
+added. Keep persistent-state, matching, ranking, and CLI concerns separate.
+
+## Build, Test, and Development Commands
+
+Use [mise](https://mise.jdx.dev/) to obtain the pinned stable Rust toolchain
+and components. Once the Cargo crate exists, run:
+
+```sh
+mise run check
+```
+
+This runs `cargo fmt --check`, Clippy across all targets and features with
+warnings denied, and the test suite. During development, `cargo test` runs the
+tests and `cargo fmt` applies Rust formatting. Do not add a separate toolchain
+configuration unless the existing `mise.toml` cannot express the need.
+
+## Coding Style & Naming Conventions
+
+Follow idiomatic Rust and let `rustfmt` decide layout; use four-space
+indentation where formatting is not automated. Use `snake_case` for functions,
+modules, and variables; `PascalCase` for types; and `SCREAMING_SNAKE_CASE` for
+constants. Keep Fish functions small, safely quote paths, and use names such as
+`__zfz_on_pwd` for private helpers. Preserve paths reported by Fish rather than
+canonicalising them, as required by the design.
+
+## Testing Guidelines
+
+Add focused unit tests next to logic and integration tests in `tests/` for CLI
+and Fish-facing behaviour. Name tests after observable outcomes, such as
+`multiple_terms_require_all_matches`. Cover ordered-character matching,
+ranking modes, unusual path contents, persistence failures, and concurrent
+updates where relevant. Run `mise run check` before submitting changes.
+
+## Commit & Pull Request Guidelines
+
+History currently uses short, imperative summaries (for example, `Initial
+commit of design doc & toolchain setup`); continue with concise imperative
+subjects. Keep commits focused. Pull requests should explain the behaviour
+changed, link relevant issues or design sections, include test results, and
+show terminal output or screenshots when the Fish user experience changes.
+
+## Documentation Changes
+
+Update `docs/DESIGN.md` only when implementation establishes or changes a
+real design decision. Record planned work in `docs/TASKS.md`; put benchmarks,
+prototypes, and supporting research in purpose-specific `docs/` files. Do not
+silently diverge from the Fish-native, short-lived-process architecture.
