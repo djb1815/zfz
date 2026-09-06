@@ -11,6 +11,9 @@ codegen-units = 1
 lto = "thin"
 strip = "symbols"
 
+[dependencies]
+fuzzy-matcher = "0.3.7"
+
 [dev-dependencies]
 pretty_assertions = "1.4.1"
 rstest = "0.26.1"
