@@ -55,11 +55,15 @@ Changes merge to `main` through pull requests, but raise a PR only when
 explicitly instructed to do so. Before raising one, review its diff against the
 target branch and run the relevant checks. Use a short, descriptive title and a
 complete description with `Summary` and `Testing` sections. Summarise the
-included changes in `Summary`, and list the checks performed as bullets in
-`Testing`. Reference any GitHub issue using GitHub's closing syntax when the PR
-resolves it. The repository squash-merges PRs to `main`, using the PR title and
-description as the resulting commit message, so ensure both accurately and
-durably describe the complete change.
+included changes in `Summary`. For substantive changes, explain the purpose,
+observable behaviour, important implementation choices, and any relevant
+limitations or deferred follow-ups; keep small, self-evident fixes
+proportionate. List only the checks actually run as bullets in `Testing`, with
+useful detail when a task runner performs multiple checks. Reference any GitHub
+issue using GitHub's closing syntax when the PR resolves it. The repository
+squash-merges PRs to `main`, using the PR title and description as the
+resulting commit message, so ensure both accurately and durably describe the
+complete change.
 
 ## Documentation Changes
 
