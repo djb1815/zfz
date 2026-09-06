@@ -37,17 +37,29 @@ canonicalising them, as required by the design.
 
 Add focused unit tests next to logic and integration tests in `tests/` for CLI
 and Fish-facing behaviour. Name tests after observable outcomes, such as
-`multiple_terms_require_all_matches`. Cover ordered-character matching,
-ranking modes, unusual path contents, persistence failures, and concurrent
-updates where relevant. Run `mise run check` before submitting changes.
+`multiple_terms_require_all_matches`. Prefer parameterised tests with `rstest`
+when multiple examples exercise the same behaviour. Cover ordered-character
+matching, ranking modes, unusual path contents, persistence failures, and
+concurrent updates where relevant. Run `mise run check` before submitting
+changes.
 
 ## Commit & Pull Request Guidelines
 
 History currently uses short, imperative summaries (for example, `Initial
 commit of design doc & toolchain setup`); continue with concise imperative
-subjects. Keep commits focused. Pull requests should explain the behaviour
-changed, link relevant issues or design sections, include test results, and
-show terminal output or screenshots when the Fish user experience changes.
+subjects. For substantive changes, add a commit body explaining the motivation,
+key implementation choices, and validation performed, so the history remains
+useful without reopening the diff. Keep commits focused.
+
+Changes merge to `main` through pull requests, but raise a PR only when
+explicitly instructed to do so. Before raising one, review its diff against the
+target branch and run the relevant checks. Use a short, descriptive title and a
+complete description with `Summary` and `Testing` sections. Summarise the
+included changes in `Summary`, and list the checks performed as bullets in
+`Testing`. Reference any GitHub issue using GitHub's closing syntax when the PR
+resolves it. The repository squash-merges PRs to `main`, using the PR title and
+description as the resulting commit message, so ensure both accurately and
+durably describe the complete change.
 
 ## Documentation Changes
 
