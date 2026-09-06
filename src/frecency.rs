@@ -20,6 +20,8 @@ pub struct Record {
 
 impl Record {
     /// Returns this record's decayed score at `current_tick`.
+    ///
+    /// `lambda` is expected to be positive and finite.
     #[must_use]
     pub fn score_at(self, current_tick: u64, lambda: f64) -> f64 {
         assert!(
@@ -33,6 +35,7 @@ impl Record {
     ///
     /// The caller must advance the global event clock before calling this
     /// method, so `tick` is strictly later than every prior event.
+    /// `lambda` is expected to be positive and finite.
     #[must_use]
     pub fn visit(self, tick: u64, lambda: f64) -> Self {
         assert!(
@@ -51,7 +54,7 @@ impl Record {
 /// Creates state for a directory's first visit at `tick`.
 #[must_use]
 pub fn first_visit(tick: u64) -> Record {
-    assert!(tick > 0, "the first event-clock tick is one");
+    assert!(tick > 0, "event-clock tick must be nonzero");
     Record {
         visits: 1,
         last_tick: tick,
@@ -110,6 +113,37 @@ mod tests {
         assert_eq!(updated.visits, 4);
         assert_eq!(updated.last_tick, 9);
         assert_close(updated.score, 2.5 * (-DEFAULT_LAMBDA * 5.0).exp() + 1.0);
+    }
+
+    #[test]
+    fn consecutive_visits_apply_decay_plus_visit_incrementally() {
+        let lambda = 0.5;
+        let after_second_visit = first_visit(1).visit(2, lambda);
+        let after_third_visit = after_second_visit.visit(3, lambda);
+        let after_fourth_visit = after_third_visit.visit(4, lambda);
+
+        let expected_after_second_visit = (-lambda).exp() + 1.0;
+        let expected_after_third_visit = expected_after_second_visit * (-lambda).exp() + 1.0;
+        let expected_after_fourth_visit = expected_after_third_visit * (-lambda).exp() + 1.0;
+
+        assert_eq!(after_fourth_visit.visits, 4);
+        assert_eq!(after_fourth_visit.last_tick, 4);
+        assert_close(after_second_visit.score, expected_after_second_visit);
+        assert_close(after_third_visit.score, expected_after_third_visit);
+        assert_close(after_fourth_visit.score, expected_after_fourth_visit);
+    }
+
+    #[test]
+    fn visits_elsewhere_advance_the_clock_and_decay_a_record() {
+        let lambda = 0.5;
+        let first_directory = first_visit(1);
+        let second_directory = first_visit(2).visit(3, lambda).visit(4, lambda);
+
+        assert_eq!(second_directory.last_tick, 4);
+        assert_close(
+            first_directory.score_at(second_directory.last_tick, lambda),
+            (-1.5_f64).exp(),
+        );
     }
 
     #[rstest]
