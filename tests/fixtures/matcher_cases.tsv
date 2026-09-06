@@ -1,0 +1,11 @@
+# path\tterms\texpected_observation
+/home/alice/Documents\tdocs\tcontiguous ordered match
+/home/alice/Documents\tdcs\tnon-contiguous ordered match
+/home/alice/Documents\tsdoc\tout-of-order characters rejected
+/home/alice/Documents/projects/zfz\tdocs proj\tmultiple AND terms in path order
+/home/alice/projects/zfz/Documents\tdocs proj\tmultiple AND terms in reverse path order
+/work/client-project\tcp\tpath-component boundary match
+/work/receiptpaper\tcp\tinterior match for boundary comparison
+/work/Documents\tdocs\tASCII lowercase smart-case match
+/work/documents\tDocs\tASCII uppercase smart-case rejection
+/work/Éclair\técl\tnon-ASCII case folding is not supported by the dependency

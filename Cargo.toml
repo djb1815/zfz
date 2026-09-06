@@ -14,3 +14,6 @@ strip = "symbols"
 [dev-dependencies]
 pretty_assertions = "1.4.1"
 rstest = "0.26.1"
+
+[dependencies]
+fuzzy-matcher = "0.3.7"

@@ -45,8 +45,8 @@ A documented and tested frecency implementation whose behavior is understood ind
 
 The matcher should implement ordered-character fuzzy matching with AND semantics across query terms.
 
-- [ ] Define a small corpus of representative directory paths and queries.
-- [ ] Include cases covering:
+- [x] Define a small corpus of representative directory paths and queries.
+- [x] Include cases covering:
   - contiguous matches;
   - non-contiguous ordered matches;
   - rejected out-of-order characters;
@@ -54,11 +54,11 @@ The matcher should implement ordered-character fuzzy matching with AND semantics
   - query-term ordering;
   - path-component boundaries;
   - case behavior.
-- [ ] Investigate a Rust implementation of an fzf V2-style matcher.
-- [ ] Confirm licensing constraints around reuse or porting.
-- [ ] Implement or integrate the simplest viable matcher.
-- [ ] Expose match eligibility and fuzzy match score separately.
-- [ ] Verify that matching does not require or imply the final ranking formula.
+- [x] Investigate a Rust implementation of an fzf V2-style matcher.
+- [x] Confirm licensing constraints around reuse or porting.
+- [x] Implement or integrate the simplest viable matcher.
+- [x] Expose match eligibility and fuzzy match score separately.
+- [x] Verify that matching does not require or imply the final ranking formula.
 
 ### Deliverable
 
