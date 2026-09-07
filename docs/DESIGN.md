@@ -127,31 +127,26 @@ The model should avoid classic `z`'s periodic global score decay in favour of co
 
 The database should not need to retain a complete visit log. It should store enough per-directory state to update ranking incrementally.
 
-At minimum, the design is expected to require concepts equivalent to:
+The logical per-directory record requires:
 
 ```text
 path
 frecency_score
-last_visit
+last_visit_tick
+visit_count
 ```
 
-The CLI also intends to support frequency-only ranking (`-r/--rank`). Depending on the precise semantics selected for that mode, the persistent record may additionally need a visit count or equivalent frequency state:
-
-```text
-visit_count    # likely, exact semantics still open
-```
-
-The precise stored representation is deliberately unresolved until the `ze` formula and alternate ranking modes are prototyped.
+The persistence benchmark may choose an appropriate encoding, but it must preserve these values. A global event-clock tick is also required to decay frecency at query time.
 
 ### 5.3 Ranking modes
 
 The intended modes are:
 
 - **default:** normal decaying frecency;
-- **`-r`, `--rank`:** frequency of visits;
-- **`-t`, `--time`:** recency, with more recently visited directories first.
+- **`-r`, `--rank`:** total visit count descending;
+- **`-t`, `--time`:** last event-clock tick descending.
 
-The exact frequency and recency scoring definitions remain to be pinned down during implementation. Ranking-mode options should likely be mutually exclusive, but that is not yet established.
+Frequency and recency use their native integer values rather than converting them to floating point. Whether their CLI options are mutually exclusive remains to be established with the CLI design.
 
 ### 5.4 Ranking qualities
 
@@ -228,9 +223,9 @@ The terms do not need to occur in query order for the candidate to be eligible.
 
 This deliberately differs from classic `z`'s effective ordered `*docs*proj*` behaviour.
 
-### 6.4 Term order may affect quality
+### 6.4 Term order is provisionally observational only
 
-Although term ordering is not an eligibility rule, matching the terms in query order may be a useful scoring preference.
+Term ordering is not an eligibility rule. The matcher records whether its chosen alignments occur in query order. The initial canonical ranking does not award a separate bonus, pending evaluation against real navigation choices.
 
 For:
 
@@ -238,9 +233,7 @@ For:
 z docs proj
 ```
 
-`~/Documents/projects/foo` may deserve a stronger match-quality score than `~/projects/foo/Documents`.
-
-The strength, or even inclusion, of this preference should be validated experimentally.
+The ranking experiment confirmed that the forward and reversed forms can receive the same aggregate fuzzy score. In that exact-tie case, ignoring order falls through to path order while an order-aware variant selects the forward form. Neither outcome was hand-labelled as correct: typed order may express intent, but synthetic data cannot establish that it does. The signal is retained for evaluation against real usage later.
 
 ### 6.5 Preferred fuzzy algorithm
 
@@ -289,7 +282,11 @@ Case-sensitive versus case-insensitive/smart-case behaviour is still open and sh
 
 ## 7. Final Candidate Ordering
 
-The project needs one canonical ordering of matched directories.
+The project uses one canonical ordering of matched directories:
+
+1. the selected history score descending;
+2. aggregate fuzzy-match score descending, only when history ties;
+3. preserved path ascending as a deterministic final tie-breaker.
 
 That same ordering should feed all consumption modes:
 
@@ -300,13 +297,11 @@ matching + ranking
   └─ --interactive      → present ordered candidates to fzf
 ```
 
-The key unresolved ranking experiment is how fuzzy match quality should interact with directory history.
+The ranking experiment compared history-only ordering, history with fuzzy quality as a secondary signal, a normalised 80:20 combined score, and 4:1 weighted dense-rank fusion across frecency, frequency, and recency modes. History-primary/fuzzy-secondary and rank fusion each selected 17 of 20 hand-labelled results; the former was selected because it achieves that result without a weighting policy.
 
-At minimum, compare:
+Min-max combination made results depend on the range of other eligible candidates: adding a low-history candidate could change which of two existing candidates ranked first. Rank fusion avoided that failure, but a focused scenario changed its top result between 4:1 and 9:1 history weighting. Neither complexity improved on history-primary/fuzzy-secondary ordering.
 
-1. **Frecency only** — fuzzy matching is eligibility-only; matching candidates are ordered by history.
-2. **Frecency primary, fuzzy secondary** — fuzzy quality is a tie-breaker or bounded secondary signal.
-3. **Combined score** — fuzzy quality materially contributes to final ordering.
+The reproducible strategies, fixtures, detailed examples, and recommendation are recorded in [`ranking.md`](ranking.md).
 
 The first priority is the quality and predictability of the **top result**, because that is what normal navigation selects automatically.
 
@@ -815,20 +810,10 @@ The following are intentionally unresolved and should be updated as implementati
 
 - Can fzf V2 be reused or independently implemented cleanly and compatibly in Rust?
 - What case-sensitivity/smart-case policy should apply?
-- Should fuzzy score influence final ranking at all?
-- If yes, should it be secondary to frecency or part of a combined score?
-- How strongly should multi-term query order affect match quality?
+- Should query-term order break otherwise complete history/fuzzy ties once real usage can be evaluated?
 - Do path-component-specific signals need adjustment beyond the chosen fuzzy algorithm?
 - Should classic `z`/`zsh-z` common-root selection behaviour be retained, modified, or removed?
 - Is comparing fzf V2 with fzy worthwhile after the first matcher works?
-
-### Frecency and record state
-
-- Confirm `ze`'s exact update/query formulas and effective half-life.
-- Confirm licensing and what should be independently reimplemented.
-- Is `path + frecency_score + last_visit` sufficient for default ranking?
-- What additional state is required for well-defined `--rank` frequency semantics?
-- What is the exact implementation of `--time` recency ranking?
 
 ### Persistence
 

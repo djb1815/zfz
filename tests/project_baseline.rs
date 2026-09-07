@@ -8,6 +8,7 @@ fn prototype_fixtures_are_present() {
         "directory_histories.tsv",
         "matcher_cases.tsv",
         "queries.tsv",
+        "ranking_histories.tsv",
     ] {
         let fixture = fixtures.join(name);
         assert!(fixture.is_file(), "missing fixture: {}", fixture.display());

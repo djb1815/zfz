@@ -18,6 +18,11 @@ and ranking pipeline, but it should not be assumed to be the permanent choice.
   2020.
 - Its practical matching behavior should continue to be assessed against the
   corpus; exact score parity with fzf is not a goal.
+- Ranking scenarios found that component bonuses can make `/d/o/c/s` score
+  above a contiguous `/docs` match.
+- Exact query text embedded in a longer path can tie the shorter component-only
+  path because trailing candidate length is not penalised; deterministic path
+  order then selects between them.
 
 Evaluate whether these limitations matter for real directory histories and
 benchmark the alternatives using the same corpus. Reasonable options are to

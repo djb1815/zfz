@@ -76,12 +76,12 @@ Compare at least:
 2. frecency with fuzzy score as a secondary/tie-break signal;
 3. an explicit combined fuzzy + frecency score.
 
-- [ ] Construct realistic synthetic histories with intentionally ambiguous candidates.
-- [ ] Add hand-written scenarios where the expected top result is easy to reason about.
-- [ ] Compare ranking strategies against those scenarios.
-- [ ] Evaluate whether query-term ordering should contribute to match quality.
-- [ ] Record surprising or undesirable results.
-- [ ] Select the simplest ranking strategy that produces consistently useful top results.
+- [x] Construct realistic synthetic histories with intentionally ambiguous candidates.
+- [x] Add hand-written scenarios where the expected top result is easy to reason about.
+- [x] Compare ranking strategies against those scenarios.
+- [x] Evaluate whether query-term ordering should contribute to match quality.
+- [x] Record surprising or undesirable results.
+- [x] Select the simplest ranking strategy that produces consistently useful top results.
 
 ### Deliverable
 
