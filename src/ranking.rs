@@ -134,6 +134,8 @@ fn rank_with_frecency_scorer(
         }
     }
 
+    // Decorate: compute each candidate's history key exactly once rather than
+    // repeating frecency calculations inside the sort comparator.
     let mut decorated = Vec::with_capacity(candidates.len());
     for candidate in candidates.iter().copied() {
         let history_key = match history_mode {
@@ -150,12 +152,15 @@ fn rank_with_frecency_scorer(
         decorated.push((candidate, history_key));
     }
 
+    // Sort: compare the cached history keys, then the canonical tie-breakers.
     decorated.sort_by(|(left, left_history), (right, right_history)| {
         left_history
             .descending_cmp(*right_history)
             .then_with(|| right.fuzzy_score.cmp(&left.fuzzy_score))
             .then_with(|| left.path.cmp(right.path))
     });
+
+    // Undecorate: copy the ordered candidates back and discard the cached keys.
     for (target, (candidate, _)) in candidates.iter_mut().zip(decorated) {
         *target = candidate;
     }
@@ -166,6 +171,9 @@ fn rank_with_frecency_scorer(
 #[cfg(test)]
 mod tests {
     use std::error::Error;
+
+    use pretty_assertions::assert_eq;
+    use rstest::rstest;
 
     use super::{Candidate, HistoryMode, RankingError, rank, rank_with_frecency_scorer};
     use crate::frecency::Record;
@@ -264,39 +272,40 @@ mod tests {
         assert_eq!(candidates, original);
     }
 
-    #[test]
-    fn every_non_finite_frecency_does_not_reorder_input() {
-        for score in [f64::NAN, f64::INFINITY, f64::NEG_INFINITY] {
-            let mut candidates = [
-                candidate("/z-valid", 1.0, 1, TICK, 1),
-                candidate("/invalid", score, 1, TICK, 1),
-                candidate("/a-valid", 1.0, 1, TICK, 1),
-            ];
-            let original_paths: Vec<_> = candidates.iter().map(Candidate::path).collect();
-            let error = rank(&mut candidates, HistoryMode::Frecency, TICK).unwrap_err();
-            match error {
-                RankingError::NonFiniteFrecencyScore { score: actual } => {
-                    assert!(actual == score || actual.is_nan() && score.is_nan());
-                }
-                other => panic!("unexpected error: {other}"),
+    #[rstest]
+    #[case::nan(f64::NAN)]
+    #[case::positive_infinity(f64::INFINITY)]
+    #[case::negative_infinity(f64::NEG_INFINITY)]
+    fn non_finite_frecency_does_not_reorder_input(#[case] score: f64) {
+        let mut candidates = [
+            candidate("/z-valid", 1.0, 1, TICK, 1),
+            candidate("/invalid", score, 1, TICK, 1),
+            candidate("/a-valid", 1.0, 1, TICK, 1),
+        ];
+        let original_paths: Vec<_> = candidates.iter().map(Candidate::path).collect();
+        let error = rank(&mut candidates, HistoryMode::Frecency, TICK).unwrap_err();
+        match error {
+            RankingError::NonFiniteFrecencyScore { score: actual } => {
+                assert!(actual == score || actual.is_nan() && score.is_nan());
             }
-            assert_eq!(
-                candidates.iter().map(Candidate::path).collect::<Vec<_>>(),
-                original_paths
-            );
+            other => panic!("unexpected error: {other}"),
         }
+        assert_eq!(
+            candidates.iter().map(Candidate::path).collect::<Vec<_>>(),
+            original_paths
+        );
     }
 
-    #[test]
-    fn non_finite_stored_scores_do_not_affect_integer_history_modes() {
-        for mode in [HistoryMode::Frequency, HistoryMode::Recency] {
-            let mut candidates = [
-                candidate("/lower", f64::NAN, 1, 1, 100),
-                candidate("/higher", f64::INFINITY, 2, 2, 0),
-            ];
-            rank(&mut candidates, mode, 0).unwrap();
-            assert_eq!(candidates[0].path(), "/higher");
-        }
+    #[rstest]
+    #[case::frequency(HistoryMode::Frequency)]
+    #[case::recency(HistoryMode::Recency)]
+    fn non_finite_stored_scores_do_not_affect_integer_history_modes(#[case] mode: HistoryMode) {
+        let mut candidates = [
+            candidate("/lower", f64::NAN, 1, 1, 100),
+            candidate("/higher", f64::INFINITY, 2, 2, 0),
+        ];
+        rank(&mut candidates, mode, 0).unwrap();
+        assert_eq!(candidates[0].path(), "/higher");
     }
 
     #[test]

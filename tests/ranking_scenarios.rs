@@ -2,6 +2,7 @@ use std::collections::BTreeMap;
 
 mod support;
 
+use pretty_assertions::assert_eq;
 use support::ranking::{
     Candidate as ExperimentalCandidate, Strategy, TermOrderPolicy, rank as rank_experimental,
 };

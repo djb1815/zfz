@@ -1,5 +1,6 @@
 mod support;
 
+use pretty_assertions::assert_eq;
 use support::ranking::{Candidate, Strategy, TermOrderPolicy, rank as rank_experimental};
 use zfz::{
     frecency::Record,
