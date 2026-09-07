@@ -15,7 +15,16 @@ recency exactly as integers, and improves equal-history results without a
 tuning constant. Query-term order remains observable but is provisionally
 ignored until real usage can establish whether typed order expresses intent.
 
+Production exposes this policy as the sole `rank(candidates, history_mode,
+current_tick)` entry point. It validates every frecency input before changing
+candidate order and computes one mode-specific history key per candidate.
+Invalid clocks and non-finite frecency scores are returned as typed errors.
+
 ## Strategies and selection rule
+
+The alternatives in this section are retained only in shared integration-test
+support. They remain reproducible against the fixture corpus without exposing
+configuration for rejected strategies to application code.
 
 The same 20 hand-labelled scenarios were evaluated with four strategies:
 
@@ -90,8 +99,8 @@ boundary cases. They establish:
   eligible strategies;
 - empty and singleton inputs are valid;
 - complete ties use preserved path order;
-- invalid event clocks, non-finite frecency, and zero fusion weights fail
-  explicitly;
+- invalid event clocks and non-finite frecency return typed production errors
+  without reordering input; zero experimental fusion weights fail explicitly;
 - frequency and recency retain exact `u64` ordering above `f64`'s exact integer
   range.
 

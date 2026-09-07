@@ -1,12 +1,14 @@
 use std::collections::BTreeMap;
 
+mod support;
+
+use support::ranking::{
+    Candidate as ExperimentalCandidate, Strategy, TermOrderPolicy, rank as rank_experimental,
+};
 use zfz::{
     frecency::Record,
     matcher::match_terms,
-    ranking::{
-        CANONICAL_STRATEGY, CANONICAL_TERM_ORDER, Candidate, HistoryMode, Strategy,
-        TermOrderPolicy, rank,
-    },
+    ranking::{Candidate, HistoryMode, rank},
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -65,13 +67,13 @@ fn scenarios() -> BTreeMap<String, Vec<FixtureRecord>> {
     scenarios
 }
 
-fn candidates(records: &[FixtureRecord]) -> Vec<Candidate<'_>> {
+fn experimental_candidates(records: &[FixtureRecord]) -> Vec<ExperimentalCandidate<'_>> {
     records
         .iter()
         .map(|fixture| {
             let matched = match_terms(&fixture.path, fixture.terms.split_whitespace())
                 .unwrap_or_else(|| panic!("fixture path must match: {}", fixture.path));
-            Candidate {
+            ExperimentalCandidate {
                 path: &fixture.path,
                 record: fixture.record,
                 fuzzy_score: matched.fuzzy_score,
@@ -82,8 +84,8 @@ fn candidates(records: &[FixtureRecord]) -> Vec<Candidate<'_>> {
 }
 
 fn top_path(records: &[FixtureRecord], strategy: Strategy, term_order: TermOrderPolicy) -> &str {
-    let mut candidates = candidates(records);
-    rank(
+    let mut candidates = experimental_candidates(records);
+    rank_experimental(
         &mut candidates,
         records[0].mode,
         records[0].current_tick,
@@ -91,6 +93,15 @@ fn top_path(records: &[FixtureRecord], strategy: Strategy, term_order: TermOrder
         term_order,
     );
     candidates[0].path
+}
+
+fn canonical_top_path(records: &[FixtureRecord]) -> &str {
+    let mut candidates: Vec<_> = experimental_candidates(records)
+        .into_iter()
+        .map(|candidate| Candidate::new(candidate.path, candidate.record, candidate.fuzzy_score))
+        .collect();
+    rank(&mut candidates, records[0].mode, records[0].current_tick).unwrap();
+    candidates[0].path()
 }
 
 fn expected_path(records: &[FixtureRecord]) -> Option<&str> {
@@ -107,7 +118,7 @@ fn wins(strategy: Strategy) -> usize {
         .values()
         .filter_map(|records| {
             expected_path(records).map(|expected| {
-                usize::from(top_path(records, strategy, CANONICAL_TERM_ORDER) == expected)
+                usize::from(top_path(records, strategy, TermOrderPolicy::Ignore) == expected)
             })
         })
         .sum()
@@ -157,7 +168,7 @@ fn canonical_mismatches_are_explicitly_recorded() {
         let Some(expected) = expected_path(&records) else {
             continue;
         };
-        let actual = top_path(&records, CANONICAL_STRATEGY, CANONICAL_TERM_ORDER);
+        let actual = canonical_top_path(&records);
         if actual != expected {
             mismatches.push(name);
         }

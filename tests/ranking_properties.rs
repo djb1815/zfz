@@ -1,6 +1,9 @@
+mod support;
+
+use support::ranking::{Candidate, Strategy, TermOrderPolicy, rank as rank_experimental};
 use zfz::{
     frecency::Record,
-    ranking::{Candidate, HistoryMode, Strategy, TermOrderPolicy, rank},
+    ranking::{Candidate as ProductionCandidate, HistoryMode, rank},
 };
 
 const TICK: u64 = 100;
@@ -37,6 +40,22 @@ fn paths<'a>(candidates: &[Candidate<'a>]) -> Vec<&'a str> {
     candidates.iter().map(|candidate| candidate.path).collect()
 }
 
+fn rank_canonical(candidates: &mut [Candidate<'_>], mode: HistoryMode) {
+    let mut production: Vec<_> = candidates
+        .iter()
+        .map(|candidate| {
+            ProductionCandidate::new(candidate.path, candidate.record, candidate.fuzzy_score)
+        })
+        .collect();
+    rank(&mut production, mode, TICK).unwrap();
+    candidates.sort_by_key(|candidate| {
+        production
+            .iter()
+            .position(|ranked| ranked.path() == candidate.path)
+            .unwrap()
+    });
+}
+
 fn permutations(values: &mut [usize], start: usize, output: &mut Vec<Vec<usize>>) {
     if start == values.len() {
         output.push(values.to_vec());
@@ -65,14 +84,23 @@ fn every_strategy_is_independent_of_input_order() {
         HistoryMode::Frequency,
         HistoryMode::Recency,
     ] {
+        let mut expected = original;
+        rank_canonical(&mut expected, mode);
+        let expected_paths = paths(&expected);
+        for order in &orders {
+            let mut permuted: Vec<_> = order.iter().map(|index| original[*index]).collect();
+            rank_canonical(&mut permuted, mode);
+            assert_eq!(paths(&permuted), expected_paths);
+        }
+
         for strategy in STRATEGIES {
             let mut expected = original;
-            rank(&mut expected, mode, TICK, strategy, TermOrderPolicy::Ignore);
+            rank_experimental(&mut expected, mode, TICK, strategy, TermOrderPolicy::Ignore);
             let expected_paths = paths(&expected);
 
             for order in &orders {
                 let mut permuted: Vec<_> = order.iter().map(|index| original[*index]).collect();
-                rank(&mut permuted, mode, TICK, strategy, TermOrderPolicy::Ignore);
+                rank_experimental(&mut permuted, mode, TICK, strategy, TermOrderPolicy::Ignore);
                 assert_eq!(paths(&permuted), expected_paths);
             }
         }
@@ -89,39 +117,21 @@ fn canonical_history_is_monotonic_across_a_generated_score_grid() {
                         candidate("/lower", lower as f64, 1, 1, lower_fuzzy),
                         candidate("/higher", higher as f64, 1, 1, higher_fuzzy),
                     ];
-                    rank(
-                        &mut frecency,
-                        HistoryMode::Frecency,
-                        TICK,
-                        Strategy::HistoryThenFuzzy,
-                        TermOrderPolicy::Ignore,
-                    );
+                    rank_canonical(&mut frecency, HistoryMode::Frecency);
                     assert_eq!(frecency[0].path, "/higher");
 
                     let mut frequency = [
                         candidate("/lower", 1.0, lower, 1, lower_fuzzy),
                         candidate("/higher", 1.0, higher, 1, higher_fuzzy),
                     ];
-                    rank(
-                        &mut frequency,
-                        HistoryMode::Frequency,
-                        TICK,
-                        Strategy::HistoryThenFuzzy,
-                        TermOrderPolicy::Ignore,
-                    );
+                    rank_canonical(&mut frequency, HistoryMode::Frequency);
                     assert_eq!(frequency[0].path, "/higher");
 
                     let mut recency = [
                         candidate("/lower", 1.0, 1, lower, lower_fuzzy),
                         candidate("/higher", 1.0, 1, higher, higher_fuzzy),
                     ];
-                    rank(
-                        &mut recency,
-                        HistoryMode::Recency,
-                        TICK,
-                        Strategy::HistoryThenFuzzy,
-                        TermOrderPolicy::Ignore,
-                    );
+                    rank_canonical(&mut recency, HistoryMode::Recency);
                     assert_eq!(recency[0].path, "/higher");
                 }
             }
@@ -136,13 +146,7 @@ fn canonical_fuzzy_score_is_monotonic_when_history_ties() {
             candidate("/lower", 5.0, 5, 90, lower_fuzzy),
             candidate("/higher", 5.0, 5, 90, lower_fuzzy + 1),
         ];
-        rank(
-            &mut candidates,
-            HistoryMode::Frecency,
-            TICK,
-            Strategy::HistoryThenFuzzy,
-            TermOrderPolicy::Ignore,
-        );
+        rank_canonical(&mut candidates, HistoryMode::Frecency);
         assert_eq!(candidates[0].path, "/higher");
     }
 }
@@ -170,21 +174,33 @@ fn eligible_strategies_ignore_an_inferior_added_candidate() {
         },
     ];
 
+    let first = candidate("/first", 10.0, 10, 90, 10);
+    let second = candidate("/second", 9.0, 9, 80, 100);
+    let inferior = candidate("/inferior", 0.0, 0, 0, 0);
+    let mut canonical_pair = [first, second];
+    let mut canonical_expanded = [first, second, inferior];
+    rank_canonical(&mut canonical_pair, HistoryMode::Frecency);
+    rank_canonical(&mut canonical_expanded, HistoryMode::Frecency);
+    assert_eq!(
+        paths(&canonical_expanded)
+            .into_iter()
+            .filter(|path| *path != "/inferior")
+            .collect::<Vec<_>>(),
+        paths(&canonical_pair)
+    );
+
     for strategy in strategies {
-        let first = candidate("/first", 10.0, 10, 90, 10);
-        let second = candidate("/second", 9.0, 9, 80, 100);
-        let inferior = candidate("/inferior", 0.0, 0, 0, 0);
         let mut pair = [first, second];
         let mut expanded = [first, second, inferior];
 
-        rank(
+        rank_experimental(
             &mut pair,
             HistoryMode::Frecency,
             TICK,
             strategy,
             TermOrderPolicy::Ignore,
         );
-        rank(
+        rank_experimental(
             &mut expanded,
             HistoryMode::Frecency,
             TICK,
@@ -219,7 +235,7 @@ fn rank_fusion_is_history_monotonic_across_tested_weights() {
                     candidate("/second", 4.0, 4, 40, 100),
                 ];
                 let mut before = baseline;
-                rank(&mut before, mode, TICK, strategy, TermOrderPolicy::Ignore);
+                rank_experimental(&mut before, mode, TICK, strategy, TermOrderPolicy::Ignore);
                 let before_position = paths(&before)
                     .iter()
                     .position(|path| *path == "/target")
@@ -231,7 +247,7 @@ fn rank_fusion_is_history_monotonic_across_tested_weights() {
                     visits: 7,
                     last_tick: 70,
                 };
-                rank(&mut after, mode, TICK, strategy, TermOrderPolicy::Ignore);
+                rank_experimental(&mut after, mode, TICK, strategy, TermOrderPolicy::Ignore);
                 let after_position = paths(&after)
                     .iter()
                     .position(|path| *path == "/target")
@@ -255,7 +271,7 @@ fn rank_fusion_top_result_can_depend_on_its_weight() {
     ];
 
     let mut four_to_one = original;
-    rank(
+    rank_experimental(
         &mut four_to_one,
         HistoryMode::Frecency,
         TICK,
@@ -268,7 +284,7 @@ fn rank_fusion_top_result_can_depend_on_its_weight() {
     assert_eq!(four_to_one[0].path, "/fuzzy");
 
     let mut nine_to_one = original;
-    rank(
+    rank_experimental(
         &mut nine_to_one,
         HistoryMode::Frecency,
         TICK,
@@ -292,13 +308,7 @@ fn complete_ties_fall_back_to_preserved_path() {
             candidate("/zeta", 5.0, 5, 90, 50),
             candidate("/alpha", 5.0, 5, 90, 50),
         ];
-        rank(
-            &mut candidates,
-            mode,
-            TICK,
-            Strategy::HistoryThenFuzzy,
-            TermOrderPolicy::Ignore,
-        );
+        rank_canonical(&mut candidates, mode);
         assert_eq!(candidates[0].path, "/alpha");
     }
 }

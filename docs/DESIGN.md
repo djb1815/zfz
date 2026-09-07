@@ -288,6 +288,13 @@ The project uses one canonical ordering of matched directories:
 2. aggregate fuzzy-match score descending, only when history ties;
 3. preserved path ascending as a deterministic final tie-breaker.
 
+This is the only production ranking policy. Ranking decorates each candidate
+with one mode-specific history key, preserving native `u64` values for
+frequency and recency, before sorting. Frecency ranking validates the complete
+input and returns a typed error for a backwards event clock or non-finite score;
+an error leaves candidate order unchanged. Experimental strategies and query-
+term-order tie-breaking live only in test support.
+
 That same ordering should feed all consumption modes:
 
 ```text

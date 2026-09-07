@@ -82,6 +82,10 @@ Compare at least:
 - [x] Evaluate whether query-term ordering should contribute to match quality.
 - [x] Record surprising or undesirable results.
 - [x] Select the simplest ranking strategy that produces consistently useful top results.
+- [x] Harden the selected policy as the sole production ranking API with
+  precomputed history keys and typed, non-mutating validation errors.
+- [x] Retain rejected strategies and term-order evaluation in shared test
+  support rather than application code.
 
 ### Deliverable
 
