@@ -555,7 +555,25 @@ Prefer the simpler overall solution unless the alternative provides a meaningful
 
 No persistence architecture should be treated as final until the benchmark below has been run.
 
+### 12.4 Decision: SQLite with rollback journalling
+
+The task 5 benchmark selected embedded SQLite in `DELETE` journal mode with
+full synchronous durability and a bundled SQLite build. Snapshot/journal reads
+were faster, but common-history improvements did not cross the predeclared
+selection threshold, while every snapshot/journal write had to load and replay
+the full state. SQLite updates remained close to 3 ms across all dataset sizes
+and avoid application-owned locking, recovery, and compaction protocols.
+
+WAL was consistently slower for this short-lived open/update/close workload and
+is not the initial configuration. Matching and ranking remain in Rust over
+loaded records. Full methodology and results are in [`storage.md`](storage.md).
+
 ## 13. Persistence Benchmark Plan
+
+**Status:** Complete. The reproducible harness is retained in
+`benchmarks/storage/`; [`storage.md`](storage.md) records the measured evidence
+and recommendation. Raw run output is archived externally rather than tracked
+as individual repository files.
 
 The benchmark should model zfz's actual short-lived workload rather than general database throughput.
 
@@ -824,10 +842,6 @@ The following are intentionally unresolved and should be updated as implementati
 
 ### Persistence
 
-- Snapshot+journal or SQLite?
-- If snapshot+journal wins, what format and locking mechanism should be used?
-- What compaction trigger is appropriate?
-- If SQLite wins, which Rust binding/linking strategy gives the desired distribution properties?
 - What database/storage location and migration/versioning strategy should be used?
 
 ### CLI and output

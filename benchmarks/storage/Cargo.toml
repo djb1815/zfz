@@ -1,0 +1,20 @@
+[package]
+name = "zfz-storage-benchmark"
+version = "0.0.0"
+edition = "2024"
+publish = false
+
+[features]
+default = ["sqlite"]
+sqlite = ["dep:rusqlite"]
+
+[dependencies]
+crc32fast = "1.5.0"
+fs2 = "0.4.3"
+rusqlite = { version = "0.37.0", features = ["bundled"], optional = true }
+zfz = { path = "../.." }
+
+[profile.release]
+codegen-units = 1
+lto = "thin"
+strip = "symbols"
