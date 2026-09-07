@@ -5,3 +5,4 @@
 
 pub mod frecency;
 pub mod matcher;
+pub mod ranking;

@@ -13,9 +13,9 @@ public API exposes:
 - `match_terms(path, terms)` for AND semantics, a sum of per-term scores, and
   the separately observable `terms_in_path_order` signal.
 
-The aggregate fuzzy score is not combined with frecency. Task 4 will evaluate
-whether it should be ignored, used only as a secondary signal, or materially
-combined with history ranking.
+The aggregate fuzzy score is not numerically combined with frecency. The Task 4
+ranking experiment selected history-primary ordering with fuzzy score as an
+exact-tie signal; see [`ranking.md`](ranking.md).
 
 ## Case behaviour
 

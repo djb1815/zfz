@@ -1,0 +1,48 @@
+# scenario	mode	current_tick	path	visits	last_tick	stored_frecency	query_terms	expectation
+strong_frecency	frecency	120	/Users/alex/work/client-portal	7	105	3.4	cp	other
+strong_frecency	frecency	120	/Users/alex/work/corporate-platform	31	119	8.8	cp	winner
+close_frecency	frecency	120	/Users/alex/work/docs	9	115	5.8	docs	other
+close_frecency	frecency	120	/Users/alex/work/distributed-object-cache-service	11	116	6.0	docs	winner
+tied_frecency	frecency	120	/Users/alex/work/z-docs	5	115	4.0	docs	winner
+tied_frecency	frecency	120	/Users/alex/work/a-document-cache-service	5	115	4.0	docs	other
+realistic_pool	frecency	120	/Users/alex/projects/zfz	42	119	14.1	zf	winner
+realistic_pool	frecency	120	/Users/alex/projects/zfz/docs	19	117	9.4	zf	other
+realistic_pool	frecency	120	/Users/alex/archive/zero-footprint	3	72	1.8	zf	other
+realistic_pool	frecency	120	/Volumes/work/zebra/functions	8	101	4.7	zf	other
+realistic_pool	frecency	120	/Users/alex/scratch/zany-folder	2	43	1.2	zf	other
+boundary_tie	frecency	120	/Users/alex/work/z-client-project	8	110	5.0	cp	winner
+boundary_tie	frecency	120	/Users/alex/work/a-receiptpaper	8	110	5.0	cp	other
+deep_path_tie	frecency	120	/Users/alex/archive/d/o/c/s	8	110	5.0	docs	other
+deep_path_tie	frecency	120	/Users/alex/work/docs	8	110	5.0	docs	winner
+repeated_component_tie	frecency	120	/Users/alex/work/z-docs/docs	8	110	5.0	docs	winner
+repeated_component_tie	frecency	120	/Users/alex/work/a-directory/object/cache/service	8	110	5.0	docs	other
+single_character_history	frecency	120	/Users/alex/personal	4	115	2.0	p	other
+single_character_history	frecency	120	/Users/alex/projects	30	119	9.0	p	winner
+long_query_tie	frecency	120	/Users/alex/work/z-documentation	6	112	4.0	documentation	winner
+long_query_tie	frecency	120	/Users/alex/work/a-documentation-archive	6	112	4.0	documentation	other
+overlapping_terms_tie	frecency	120	/Users/alex/work/z-docs/object-cache	6	112	4.0	doc oc	winner
+overlapping_terms_tie	frecency	120	/Users/alex/work/a-documentation/observability-core	6	112	4.0	doc oc	other
+three_way_tie	frecency	120	/Users/alex/work/z-api	6	112	4.0	api	winner
+three_way_tie	frecency	120	/Users/alex/work/a-platform-integration	6	112	4.0	api	other
+three_way_tie	frecency	120	/Users/alex/work/archive-python-index	6	112	4.0	api	other
+combined_pressure	frecency	120	/Users/alex/work/delta/objects/cache/service	10	120	10.0	docs	winner
+combined_pressure	frecency	120	/Users/alex/work/docs	9	120	9.0	docs	other
+combined_pressure	frecency	120	/Users/alex/old/directory/object/cache/service	1	120	0.1	docs	other
+frequency_clear	frequency	120	/Users/alex/work/portal	4	119	9.0	prtl	other
+frequency_clear	frequency	120	/Users/alex/projects/rust-tooling	25	80	2.0	prtl	winner
+frequency_tie	frequency	120	/Users/alex/work/z-docs	10	80	2.0	docs	winner
+frequency_tie	frequency	120	/Users/alex/work/a-document-cache-service	10	119	9.0	docs	other
+frequency_complete_tie	frequency	120	/Users/alex/a/alpha	10	80	2.0	alpha	winner
+frequency_complete_tie	frequency	120	/Users/alex/z/alpha	10	119	9.0	alpha	other
+recency_clear	recency	120	/Users/alex/work/client-portal	40	100	8.0	cp	other
+recency_clear	recency	120	/Users/alex/work/corporate-platform	2	119	1.0	cp	winner
+recency_tie	recency	120	/Users/alex/work/z-docs	2	115	1.0	docs	winner
+recency_tie	recency	120	/Users/alex/work/a-document-cache-service	40	115	8.0	docs	other
+recency_complete_tie	recency	120	/Users/alex/a/alpha	2	115	1.0	alpha	winner
+recency_complete_tie	recency	120	/Users/alex/z/alpha	40	115	8.0	alpha	other
+term_order_history	frecency	120	/Users/alex/Documents/projects/zfz	12	118	5.0	docs proj	other
+term_order_history	frecency	120	/Users/alex/projects/zfz/Documents	12	119	7.0	docs proj	winner
+term_order_neutral	frecency	120	/Users/alex/z/Documents/projects/zfz	12	118	6.2	docs proj	neutral
+term_order_neutral	frecency	120	/Users/alex/a/projects/zfz/Documents	12	118	6.2	docs proj	neutral
+smart_case_tie	frecency	120	/Users/alex/work/z-Docs	5	115	4.0	Docs	winner
+smart_case_tie	frecency	120	/Users/alex/work/a-DocsArchive	5	115	4.0	Docs	other
