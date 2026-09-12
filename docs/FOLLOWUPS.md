@@ -32,3 +32,23 @@ Evaluate whether these limitations matter for real directory histories and
 benchmark the alternatives using the same corpus. Reasonable options are to
 retain the dependency, replace it with a maintained Rust matcher, or implement
 the required fzf-style subset in zfz with explicit Unicode and parity tests.
+
+## Reassess release executable size
+
+**When:** After the production storage and CLI are implemented, before the
+first distribution release.
+
+The task 5 follow-up audit reduced the bundled-SQLite benchmark harness from
+2.24 MB to 1.73 MB by disabling unused optional SQLite facilities without a
+measurable latency regression. Compiling SQLite's C code for size reduced it
+further to 1.20 MB but added about 0.8 ms to a representative 10,000-record
+read. Optimising the entire Rust application for size caused a much larger
+matching/ranking regression and should not be used based on current evidence.
+
+Reassess the final stripped production executable rather than extrapolating
+from the benchmark harness. Compare normal and C-only size optimisation on all
+supported release targets, inspect linked sections/symbols for additional safe
+savings, and retain bundled SQLite unless a system-library distribution model
+can provide equally predictable installation and behaviour. Any custom SQLite
+compile configuration must run the complete storage concurrency and recovery
+suite.

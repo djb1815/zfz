@@ -566,7 +566,18 @@ and avoid application-owned locking, recovery, and compaction protocols.
 
 WAL was consistently slower for this short-lived open/update/close workload and
 is not the initial configuration. Matching and ranking remain in Rust over
-loaded records. Full methodology and results are in [`storage.md`](storage.md).
+loaded records.
+
+The production records table should use its path primary key directly with
+`WITHOUT ROWID`. A post-benchmark audit showed that the prototype's ordinary
+rowid table stored paths in both the table and its automatic unique index;
+removing that duplication brought SQLite storage approximately level with the
+custom snapshot. The bundled build should also disable optional SQLite
+facilities zfz does not use. Normal optimisation remains the default because
+size-optimising all Rust code materially slowed matching and ranking; C-only
+size optimisation remains a later distribution trade-off.
+
+Full methodology and results are in [`storage.md`](storage.md).
 
 ## 13. Persistence Benchmark Plan
 

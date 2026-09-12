@@ -6,6 +6,11 @@ Use **embedded SQLite in rollback-journal (`DELETE`) mode**, opened and closed
 by each zfz invocation, with full synchronous durability and matching/ranking
 remaining in Rust.
 
+Use a `WITHOUT ROWID` records table in the production schema. A post-benchmark
+size audit found that the prototype's ordinary rowid table duplicated its text
+primary key in a separate unique index. Removing that duplication makes the
+SQLite database approximately the same size as the custom snapshot.
+
 The snapshot+journal prototype reads faster, but not by enough at realistic
 history sizes to justify its substantially slower writes and bespoke recovery,
 locking, and compaction machinery. At 10,000 records its representative read
@@ -90,12 +95,65 @@ used, a journal/snapshot ratio of 10% (with an approximately 2,000-entry cap)
 would keep observed replay overhead below roughly 0.5 ms, but no production
 trigger is needed for the selected backend.
 
-Snapshot storage was 83,281 bytes at 1,000 records and 8,325,506 bytes at
-100,000. SQLite used 163,840 and 15,278,080 bytes respectively, about 1.8--2.0
-times as much. A release harness built without SQLite was 496,032 bytes; the
-bundled-SQLite build was 2,244,384 bytes, an increase of 1,748,352 bytes
-(1.67 MiB). These secondary costs are acceptable for a standalone executable
-and buy reproducible distribution without depending on a system SQLite ABI.
+### Post-benchmark size audit
+
+The original size comparison used the prototype schema's ordinary rowid table:
+
+```sql
+CREATE TABLE records (
+    path TEXT PRIMARY KEY,
+    visits INTEGER NOT NULL,
+    last_tick INTEGER NOT NULL,
+    score REAL NOT NULL
+);
+```
+
+For a non-integer primary key, this stores the complete record in a rowid table
+and the path again in an automatically created unique index. The measured
+stores were not inflated by repeated benchmark writes: the size report examined
+the original stores, while every write benchmark modified a copy. Freshly
+regenerated 10,000- and 100,000-record databases had no freelist pages.
+
+An audit on 2026-09-12 compared that schema with the same table declared
+`WITHOUT ROWID`:
+
+| Records | Snapshot | Original SQLite | After `VACUUM` | `WITHOUT ROWID` | `WITHOUT ROWID` after `VACUUM` |
+| ---: | ---: | ---: | ---: | ---: | ---: |
+| 10,000 | 832,577 | 1,523,712 | 1,454,080 | 872,448 | 778,240 |
+| 100,000 | 8,325,506 | 15,278,080 | 14,520,320 | 8,597,504 | 7,651,328 |
+
+All values are bytes. `VACUUM` recovered only about 5% from the original schema;
+the main reduction came from eliminating the duplicate primary-key B-tree.
+`VACUUM` is therefore not required for normal operation, although explicit
+maintenance may be useful after unusually large removals. The production
+schema should use `WITHOUT ROWID`; its update, read, concurrency, and recovery
+behaviour must be revalidated as part of task 6. This use matches SQLite's
+[documented storage optimisation](https://www.sqlite.org/withoutrowid.html)
+for tables with non-integer primary keys.
+
+The original stripped release harness was 496,032 bytes without SQLite and
+2,244,384 bytes with the default bundled SQLite build, an incremental increase
+of 1,748,352 bytes (1.67 MiB). This is an isolation measurement from a benchmark
+executable, not a prediction of the final zfz executable's absolute size.
+
+The bundled build enables optional facilities zfz does not use, including FTS,
+R-tree, DBSTAT, extension loading, column metadata, and STAT4. Disabling those
+optional compile-time features reduced the same harness to 1,731,120 bytes with
+no measurable change in 100-run 10,000-record read or update samples. Compiling
+SQLite's C code with `-Oz` as well reduced it to 1,204,464 bytes, but increased
+the representative read mean from about 11.5 ms to 12.3 ms; update latency
+remained about 2.6 ms. Applying size optimisation to the entire Rust executable
+was rejected because it increased that read mean to about 18.6 ms.
+
+The initial production build should omit unused optional SQLite facilities but
+retain normal optimisation. More aggressive C-only size optimisation remains a
+distribution trade-off to revisit after the production executable exists.
+SQLite itself notes that compiler size optimisation generally has more effect
+than feature omission and cautions that arbitrary `SQLITE_OMIT_*` combinations
+are not all supported; any non-default production configuration must run the
+full zfz storage correctness suite. See SQLite's documentation on
+[compile-time options](https://www.sqlite.org/compile.html) and
+[library footprint](https://www.sqlite.org/footprint.html).
 
 ## Correctness and limitations
 
