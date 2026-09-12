@@ -59,16 +59,23 @@
 
 - Keep changes and commits focused; do not overwrite unrelated uncommitted
   work.
+- Keep `main` linear and curated. Prefer commits that form a logical recipe
+  for constructing the change, rather than a chronological development log.
+- Exploratory or WIP commits are fine during development; use fixup/autosquash
+  or interactive rebase as appropriate to curate the sequence before merge.
 - Use concise imperative subjects. Substantive commits need motivation, key
   decisions, and validation in the body.
 
 ### Pull requests
 
 - Merge to `main` by PR. Open or create one only when asked.
-- Before opening, review the diff against the target branch and run relevant
-  checks.
+- Before opening, review both the diff against the target branch and the
+  quality of the commit sequence; run relevant checks.
 - Use a short descriptive title and `Summary` and `Testing` sections. PRs
-  squash-merge to durable `main` history, so both must stand alone.
+  should rebase-and-merge when their individual commits provide useful
+  history. Squash-and-merge remains appropriate when the PR is one logical
+  commit or its intermediate commits are not worth preserving; the human
+  engineer decides which strategy fits.
 - `Summary`: purpose, observable behaviour, important choices, and material
   limitations or follow-ups; keep self-evident fixes proportionate.
 - `Testing`: only checks actually performed, including relevant manual/live
