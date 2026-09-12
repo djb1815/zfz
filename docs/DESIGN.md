@@ -474,14 +474,13 @@ Configuration format, path expansion, and the exact normalisation performed befo
 
 Tracked directories may later cease to exist.
 
-The final policy is open. Candidate behaviours include:
-
-- retain stale entries and let their score decay naturally;
-- ignore nonexistent entries during navigation but retain them in storage;
-- remove stale entries opportunistically;
-- expose explicit cleanup behaviour.
-
-The initial implementation should prefer a simple, predictable policy and must never `cd` to a path that is no longer usable.
+The storage layer retains paths without inspecting the filesystem. During normal
+navigation, the CLI must validate ranked candidates in order. If the best path
+is no longer usable, it removes that exact record and tries the next candidate.
+This repeats until a usable path is found or no candidates remain, so zfz never
+asks Fish to change into a stale path. This lazy cleanup avoids filesystem work
+on every stored record and preserves the storage layer's responsibility
+boundary.
 
 ## 12. Persistent Storage
 
@@ -557,7 +556,7 @@ No persistence architecture should be treated as final until the benchmark below
 
 ### 12.4 Decision: SQLite with rollback journalling
 
-The task 5 benchmark selected embedded SQLite in `DELETE` journal mode with
+The storage benchmark selected embedded SQLite in `DELETE` journal mode with
 full synchronous durability and a bundled SQLite build. Snapshot/journal reads
 were faster, but common-history improvements did not cross the predeclared
 selection threshold, while every snapshot/journal write had to load and replay
@@ -609,6 +608,28 @@ The bundled build should disable optional SQLite facilities zfz does not use.
 Normal optimisation remains the default because size-optimising all Rust code
 materially slowed matching and ranking; C-only size optimisation remains a
 later distribution trade-off.
+
+### 12.5 Production storage interface
+
+The SQLite-backed storage module uses a record consisting of the
+preserved UTF-8 path plus frecency score, latest event tick, and visit count.
+It returns a consistent snapshot containing both the global tick and all
+records, but does not match, rank, or inspect filesystem paths.
+
+The default database is
+`$XDG_STATE_HOME/zfz/history.sqlite3`, falling back to
+`$HOME/.local/state/zfz/history.sqlite3`. Reads of a never-created database
+return an empty history without creating files; the first write creates and
+initializes it. Explicit add has the same clock-advancing semantics as a
+tracked visit. Exact removal deletes one preserved path; recursive removal
+deletes that path and slash-boundary descendants, never lexical lookalikes.
+
+Automatic tracking waits at most 100 ms for a SQLite lock and reports a
+droppable contention result. Explicit add and remove operations wait at most
+one second and report contention as an error. All writes use `BEGIN IMMEDIATE`
+and `synchronous=FULL`; reads use one `DEFERRED` transaction for the tick and
+rows. The schema version is validated on every ordinary open, with writable
+initialization reserved for first creation and future migrations.
 
 Full methodology and results are in [`storage.md`](storage.md).
 

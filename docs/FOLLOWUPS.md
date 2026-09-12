@@ -8,7 +8,7 @@ prototype or benchmark results are available.
 **When:** After matcher and storage benchmarks, before committing to the
 production matcher.
 
-Task 3 uses `fuzzy-matcher` 0.3.7's `SkimMatcherV2` as a small, MIT-licensed
+The current matcher uses `fuzzy-matcher` 0.3.7's `SkimMatcherV2` as a small, MIT-licensed
 fzf V2-style prototype dependency. It is suitable for evaluating the matching
 and ranking pipeline, but it should not be assumed to be the permanent choice.
 
@@ -38,7 +38,7 @@ the required fzf-style subset in zfz with explicit Unicode and parity tests.
 **When:** After the production storage and CLI are implemented, before the
 first distribution release.
 
-The task 5 follow-up audit reduced the bundled-SQLite benchmark harness from
+The storage follow-up audit reduced the bundled-SQLite benchmark harness from
 2.24 MB to 1.73 MB by disabling unused optional SQLite facilities without a
 measurable latency regression. Compiling SQLite's C code for size reduced it
 further to 1.20 MB but added about 0.8 ms to a representative 10,000-record

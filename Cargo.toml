@@ -13,6 +13,7 @@ strip = "symbols"
 
 [dependencies]
 fuzzy-matcher = "0.3.7"
+rusqlite = { version = "0.37.0", features = ["bundled"] }
 
 [dev-dependencies]
 pretty_assertions = "1.4.1"

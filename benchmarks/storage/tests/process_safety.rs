@@ -109,7 +109,7 @@ fn concurrent_readers_and_reader_writer_overlap_see_valid_state() {
 }
 
 #[test]
-#[ignore = "explicit task-5 stress experiment"]
+#[ignore = "explicit storage stress experiment"]
 fn reader_writer_overlap_survives_one_hundred_rounds() {
     for round in 1..=100 {
         for backend in BACKENDS {

@@ -189,18 +189,18 @@ No final persistence architecture should be selected before this work is complet
 
 After the persistence decision:
 
-- [ ] Define the directory record model.
-- [ ] Implement the selected persistence backend.
-- [ ] Support:
+- [x] Define the directory record model.
+- [x] Implement the selected persistence backend.
+- [x] Support:
   - record/update visit;
   - load candidate records;
   - explicit add;
   - remove exact entry;
   - remove entry recursively;
   - stale-entry handling as currently defined.
-- [ ] Preserve paths exactly as reported by Fish; do not canonicalize symlinks.
-- [ ] Ensure concurrent invocations are safe.
-- [ ] Ensure interrupted writes do not corrupt persistent state.
+- [x] Preserve paths exactly as reported by Fish; do not canonicalize symlinks.
+- [x] Ensure concurrent invocations are safe.
+- [x] Ensure interrupted writes do not corrupt persistent state.
 
 ### Deliverable
 

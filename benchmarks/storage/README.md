@@ -1,8 +1,8 @@
 # Storage benchmark harness
 
-This crate contains the two disposable persistence prototypes used for task 5.
-It is deliberately separate from zfz's production crate; the selected backend
-will be implemented properly in task 6.
+This crate contains the two disposable persistence prototypes used to evaluate
+the storage design. It is deliberately separate from zfz's production crate;
+the selected backend is implemented there.
 
 Build and test it with:
 
@@ -26,7 +26,7 @@ storage-benchmark bytes BACKEND STORE
 
 `BACKEND` is `journal`, `sqlite-delete`, `sqlite-delete-without-rowid`,
 `sqlite-delete-production`, or `sqlite-wal`. The `sqlite-delete` backend retains
-the original task 5 rowid schema and per-invocation setup.
+the original rowid schema and per-invocation setup.
 `sqlite-delete-without-rowid` changes only the records-table schema.
 `sqlite-delete-production` additionally models the intended connection split:
 read-only query connections, no repeated journal-mode/schema setup, a 100 ms
