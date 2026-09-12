@@ -8,10 +8,7 @@
 
 use std::cmp::Ordering;
 
-use zfz::{
-    frecency::{DEFAULT_LAMBDA, Record},
-    ranking::HistoryMode,
-};
+use zfz::{frecency::Record, ranking::HistoryMode};
 
 /// Policies compared while selecting the canonical production ordering.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -95,10 +92,10 @@ fn history_cmp(
     match mode {
         HistoryMode::Frecency => right
             .record
-            .score_at(current_tick, DEFAULT_LAMBDA)
-            .total_cmp(&left.record.score_at(current_tick, DEFAULT_LAMBDA)),
-        HistoryMode::Frequency => right.record.visits.cmp(&left.record.visits),
-        HistoryMode::Recency => right.record.last_tick.cmp(&left.record.last_tick),
+            .score_at(current_tick)
+            .total_cmp(&left.record.score_at(current_tick)),
+        HistoryMode::Frequency => right.record.visits().cmp(&left.record.visits()),
+        HistoryMode::Recency => right.record.last_tick().cmp(&left.record.last_tick()),
     }
 }
 
@@ -164,7 +161,7 @@ fn normalised_history(
         HistoryMode::Frecency => {
             let values: Vec<_> = candidates
                 .iter()
-                .map(|candidate| candidate.record.score_at(current_tick, DEFAULT_LAMBDA))
+                .map(|candidate| candidate.record.score_at(current_tick))
                 .collect();
             let range = value_range(values.iter().copied());
             values
@@ -175,13 +172,13 @@ fn normalised_history(
         HistoryMode::Frequency => normalise_u64(
             candidates
                 .iter()
-                .map(|candidate| candidate.record.visits)
+                .map(|candidate| candidate.record.visits())
                 .collect(),
         ),
         HistoryMode::Recency => normalise_u64(
             candidates
                 .iter()
-                .map(|candidate| candidate.record.last_tick)
+                .map(|candidate| candidate.record.last_tick())
                 .collect(),
         ),
     }

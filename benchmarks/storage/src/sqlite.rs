@@ -2,7 +2,10 @@ use std::{fs, path::PathBuf, time::Instant};
 
 use rusqlite::{Connection, OpenFlags, OptionalExtension, TransactionBehavior, params};
 
-use crate::{DirectoryRecord, Error, State, Store, Timings, directory_bytes};
+use crate::{
+    DirectoryRecord, Error, State, Store, Timings, directory_bytes, first_visit, record_from_parts,
+    stored_score, visit,
+};
 
 const PROTOTYPE_BUSY_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(30);
 const PRODUCTION_BUSY_TIMEOUT: std::time::Duration = std::time::Duration::from_millis(100);
@@ -172,9 +175,9 @@ impl Store for SqliteStore {
             for record in &state.records {
                 statement.execute(params![
                     record.path,
-                    record.history.visits,
-                    record.history.last_tick,
-                    record.history.score
+                    record.history.visits(),
+                    record.history.last_tick(),
+                    stored_score(record.history)
                 ])?;
             }
         }
@@ -194,18 +197,20 @@ impl Store for SqliteStore {
             })?;
         let mut statement = transaction
             .prepare("SELECT path, visits, last_tick, score FROM records ORDER BY path")?;
-        let records = statement
+        let persisted_records = statement
             .query_map([], |row| {
-                Ok(DirectoryRecord {
-                    path: row.get(0)?,
-                    history: zfz::frecency::Record {
-                        visits: row.get(1)?,
-                        last_tick: row.get(2)?,
-                        score: row.get(3)?,
-                    },
-                })
+                Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?))
             })?
             .collect::<Result<Vec<_>, _>>()?;
+        let records = persisted_records
+            .into_iter()
+            .map(|(path, visits, last_tick, score)| {
+                Ok(DirectoryRecord {
+                    path,
+                    history: record_from_parts(visits, last_tick, score)?,
+                })
+            })
+            .collect::<Result<Vec<_>, Error>>()?;
         drop(statement);
         transaction.commit()?;
         timings.load += load_started.elapsed();
@@ -227,28 +232,30 @@ impl Store for SqliteStore {
             [],
             |row| row.get(0),
         )?;
-        let existing = transaction
+        let persisted_existing = transaction
             .query_row(
                 "SELECT visits, last_tick, score FROM records WHERE path = ?1",
                 [path],
-                |row| {
-                    Ok(zfz::frecency::Record {
-                        visits: row.get(0)?,
-                        last_tick: row.get(1)?,
-                        score: row.get(2)?,
-                    })
-                },
+                |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
             )
             .optional()?;
-        let history = existing.map_or_else(
-            || zfz::frecency::first_visit(tick),
-            |record| record.visit(tick, zfz::frecency::DEFAULT_LAMBDA),
-        );
+        let existing = persisted_existing
+            .map(|(visits, last_tick, score)| record_from_parts(visits, last_tick, score))
+            .transpose()?;
+        let history = match existing {
+            Some(record) => visit(record, tick)?,
+            None => first_visit(tick)?,
+        };
         transaction.execute(
             "INSERT INTO records(path, visits, last_tick, score) VALUES (?1, ?2, ?3, ?4)
              ON CONFLICT(path) DO UPDATE SET visits=excluded.visits,
              last_tick=excluded.last_tick, score=excluded.score",
-            params![path, history.visits, history.last_tick, history.score],
+            params![
+                path,
+                history.visits(),
+                history.last_tick(),
+                stored_score(history)
+            ],
         )?;
         if std::env::var("ZFZ_FAULT").as_deref() == Ok("sqlite-before-commit") {
             std::process::abort();

@@ -2,7 +2,7 @@
 
 use std::{cmp::Ordering, error::Error, fmt};
 
-use crate::frecency::{DEFAULT_LAMBDA, Record};
+use crate::frecency::Record;
 
 /// The historical signal used as the primary ranking input.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -38,18 +38,6 @@ impl<'a> Candidate<'a> {
     #[must_use]
     pub const fn path(&self) -> &'a str {
         self.path
-    }
-
-    /// Returns the candidate's incremental directory history.
-    #[must_use]
-    pub const fn record(&self) -> Record {
-        self.record
-    }
-
-    /// Returns the aggregate quality from matching every query term.
-    #[must_use]
-    pub const fn fuzzy_score(&self) -> i64 {
-        self.fuzzy_score
     }
 }
 
@@ -113,7 +101,7 @@ pub fn rank(
     current_tick: u64,
 ) -> Result<(), RankingError> {
     rank_with_frecency_scorer(candidates, history_mode, current_tick, |record, tick| {
-        record.score_at(tick, DEFAULT_LAMBDA)
+        record.score_at(tick)
     })
 }
 
@@ -125,10 +113,10 @@ fn rank_with_frecency_scorer(
 ) -> Result<(), RankingError> {
     if history_mode == HistoryMode::Frecency {
         for candidate in candidates.iter() {
-            if current_tick < candidate.record.last_tick {
+            if current_tick < candidate.record.last_tick() {
                 return Err(RankingError::CurrentTickPrecedesLastVisit {
                     current_tick,
-                    last_tick: candidate.record.last_tick,
+                    last_tick: candidate.record.last_tick(),
                 });
             }
         }
@@ -146,8 +134,8 @@ fn rank_with_frecency_scorer(
                 }
                 HistoryKey::Frecency(score)
             }
-            HistoryMode::Frequency => HistoryKey::Frequency(candidate.record.visits),
-            HistoryMode::Recency => HistoryKey::Recency(candidate.record.last_tick),
+            HistoryMode::Frequency => HistoryKey::Frequency(candidate.record.visits()),
+            HistoryMode::Recency => HistoryKey::Recency(candidate.record.last_tick()),
         };
         decorated.push((candidate, history_key));
     }
@@ -189,11 +177,7 @@ mod tests {
     ) -> Candidate<'_> {
         Candidate::new(
             path,
-            Record {
-                visits,
-                last_tick,
-                score,
-            },
+            Record::new(visits, last_tick, score).unwrap(),
             fuzzy_score,
         )
     }
@@ -219,7 +203,7 @@ mod tests {
 
         rank_with_frecency_scorer(&mut candidates, HistoryMode::Frecency, TICK, |record, _| {
             computations += 1;
-            record.score
+            record.stored_score()
         })
         .unwrap();
 
@@ -230,8 +214,8 @@ mod tests {
     fn frequency_and_recency_compare_u64_values_exactly() {
         let large = (1_u64 << 53) + 1;
         let mut frequency = [
-            candidate("/lower", 1.0, large, 90, 10),
-            candidate("/higher", 1.0, large + 1, 90, 10),
+            candidate("/lower", 1.0, large, large + 1, 10),
+            candidate("/higher", 1.0, large + 1, large + 1, 10),
         ];
         rank(&mut frequency, HistoryMode::Frequency, TICK).unwrap();
         assert_eq!(frequency[0].path(), "/higher");
@@ -279,11 +263,19 @@ mod tests {
     fn non_finite_frecency_does_not_reorder_input(#[case] score: f64) {
         let mut candidates = [
             candidate("/z-valid", 1.0, 1, TICK, 1),
-            candidate("/invalid", score, 1, TICK, 1),
+            candidate("/invalid", 2.0, 1, TICK, 1),
             candidate("/a-valid", 1.0, 1, TICK, 1),
         ];
         let original_paths: Vec<_> = candidates.iter().map(Candidate::path).collect();
-        let error = rank(&mut candidates, HistoryMode::Frecency, TICK).unwrap_err();
+        let error =
+            rank_with_frecency_scorer(&mut candidates, HistoryMode::Frecency, TICK, |record, _| {
+                if record.stored_score() == 2.0 {
+                    score
+                } else {
+                    record.stored_score()
+                }
+            })
+            .unwrap_err();
         match error {
             RankingError::NonFiniteFrecencyScore { score: actual } => {
                 assert!(actual == score || actual.is_nan() && score.is_nan());
@@ -299,12 +291,15 @@ mod tests {
     #[rstest]
     #[case::frequency(HistoryMode::Frequency)]
     #[case::recency(HistoryMode::Recency)]
-    fn non_finite_stored_scores_do_not_affect_integer_history_modes(#[case] mode: HistoryMode) {
+    fn integer_history_modes_do_not_invoke_the_frecency_scorer(#[case] mode: HistoryMode) {
         let mut candidates = [
-            candidate("/lower", f64::NAN, 1, 1, 100),
-            candidate("/higher", f64::INFINITY, 2, 2, 0),
+            candidate("/lower", 1.0, 1, 1, 100),
+            candidate("/higher", 2.0, 2, 2, 0),
         ];
-        rank(&mut candidates, mode, 0).unwrap();
+        rank_with_frecency_scorer(&mut candidates, mode, 0, |_, _| {
+            panic!("integer history modes must not score frecency")
+        })
+        .unwrap();
         assert_eq!(candidates[0].path(), "/higher");
     }
 
