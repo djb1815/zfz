@@ -164,6 +164,19 @@ For both implementations:
 - [x] Warm-cache behavior.
 - [x] Cold-cache behavior where reproducibly measurable.
 
+### 5.7 Production-relevant SQLite follow-up
+
+- [x] Compare the original rowid schema with `WITHOUT ROWID` at every dataset
+  size for full queries, single updates, and database size.
+- [x] Assess the cost of repeated journal-mode and schema setup separately from
+  the schema change.
+- [x] Exercise the candidate schema and production-like connection policy with
+  the concurrency and crash-recovery suite.
+- [x] Record intended read/write connection roles, a bounded tracking timeout,
+  and the durability baseline for task 6.
+- [x] Explicitly defer unrelated SQLite tuning that cannot affect the storage
+  decision.
+
 ### Deliverable
 
 A benchmark report recommending either SQLite or the snapshot/journal design, including the performance/complexity trade-off and the data supporting the decision.

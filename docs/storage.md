@@ -49,6 +49,14 @@ beneath the ignored `benchmarks/storage/results/` directory. The measured run
 was archived separately for external attachment rather than committed as more
 than 100 individual repository files.
 
+A bounded follow-up on 2026-09-12 used the same machine, compiler, generated
+histories, query classes, release profile, warm-cache conditions, and 100-run
+distributions. It compared only the original SQLite schema, `WITHOUT ROWID`,
+and production-like connection setup. The reproducible runner is
+`benchmarks/storage/run-sqlite-followup.sh`; it deliberately does not vary
+durability or unrelated SQLite settings. Its raw results are archived
+separately under the same external-evidence policy as the original run.
+
 ## Results
 
 Representative end-to-end `projects` query distributions:
@@ -114,22 +122,101 @@ stores were not inflated by repeated benchmark writes: the size report examined
 the original stores, while every write benchmark modified a copy. Freshly
 regenerated 10,000- and 100,000-record databases had no freelist pages.
 
-An audit on 2026-09-12 compared that schema with the same table declared
-`WITHOUT ROWID`:
+The follow-up compared that schema with the same table declared `WITHOUT
+ROWID` at every existing dataset size:
 
-| Records | Snapshot | Original SQLite | After `VACUUM` | `WITHOUT ROWID` | `WITHOUT ROWID` after `VACUUM` |
-| ---: | ---: | ---: | ---: | ---: | ---: |
-| 10,000 | 832,577 | 1,523,712 | 1,454,080 | 872,448 | 778,240 |
-| 100,000 | 8,325,506 | 15,278,080 | 14,520,320 | 8,597,504 | 7,651,328 |
+| Records | Snapshot | Original SQLite | `WITHOUT ROWID` | After `VACUUM` |
+| ---: | ---: | ---: | ---: | ---: |
+| 100 | 8,354 | 32,768 | 20,480 | 20,480 |
+| 1,000 | 83,281 | 163,840 | 94,208 | 90,112 |
+| 5,000 | 416,304 | 774,144 | 442,368 | 397,312 |
+| 10,000 | 832,577 | 1,523,712 | 872,448 | 778,240 |
+| 50,000 | 4,162,766 | 7,618,560 | 4,296,704 | 3,829,760 |
+| 100,000 | 8,325,506 | 15,278,080 | 8,581,120 | 7,639,040 |
 
-All values are bytes. `VACUUM` recovered only about 5% from the original schema;
-the main reduction came from eliminating the duplicate primary-key B-tree.
+All values are bytes; the final column is the `WITHOUT ROWID` database after
+`VACUUM`. From 1,000 through 100,000 records the unvacuumed database was about
+3--13% larger than the custom snapshot rather than the prototype schema's
+roughly 1.8--2.0 times. `VACUUM` recovered only about 0--11% from the new
+schema; the main reduction came from eliminating the duplicate primary-key
+B-tree.
 `VACUUM` is therefore not required for normal operation, although explicit
 maintenance may be useful after unusually large removals. The production
-schema should use `WITHOUT ROWID`; its update, read, concurrency, and recovery
-behaviour must be revalidated as part of task 6. This use matches SQLite's
+schema should use `WITHOUT ROWID`. This use matches SQLite's
 [documented storage optimisation](https://www.sqlite.org/withoutrowid.html)
 for tables with non-integer primary keys.
+
+### `WITHOUT ROWID` performance
+
+Representative end-to-end `projects` query distributions from the paired
+follow-up were:
+
+| Records | Schema | Median | p95 |
+| ---: | --- | ---: | ---: |
+| 100 | rowid | 2.50 | 2.63 |
+| 100 | `WITHOUT ROWID` | 2.49 | 2.59 |
+| 1,000 | rowid | 3.37 | 3.52 |
+| 1,000 | `WITHOUT ROWID` | 3.35 | 3.47 |
+| 10,000 | rowid | 11.58 | 11.82 |
+| 10,000 | `WITHOUT ROWID` | 11.15 | 11.35 |
+| 50,000 | rowid | 44.82 | 46.76 |
+| 50,000 | `WITHOUT ROWID` | 43.03 | 43.69 |
+| 100,000 | rowid | 86.48 | 89.36 |
+| 100,000 | `WITHOUT ROWID` | 83.06 | 84.54 |
+
+The 5,000-record result followed the same trend (7.10 versus 6.89 ms median).
+All four query classes were measured at every size and showed neutral results
+for small histories and modest improvements as histories grew. Every backend
+returned the same selected path.
+
+Paired single-update medians stayed between 2.93 and 3.34 ms for both schemas
+at every size. Neither schema had a consistent advantage larger than about
+0.2 ms, and `WITHOUT ROWID` showed no size-dependent write penalty. Its query,
+update, integrity, crash-recovery, concurrent-writer, and reader/writer-overlap
+tests all passed. The explicit stress run completed 100 rounds per backend with
+eight readers and eight writers in each round. The size reduction therefore
+comes without an observed performance or correctness trade-off and justifies
+adoption in task 6.
+
+### Connection setup and production recommendations
+
+The prototype opens every database read-write/create, applies a 30-second busy
+timeout, sets `journal_mode=DELETE` and `synchronous=FULL`, and repeats `CREATE
+TABLE IF NOT EXISTS` before updates. A production-like benchmark variant
+instead used read-only query connections; existing read-write update
+connections; `synchronous=FULL` only on writes; no repeated journal-mode or
+schema setup; and a 100 ms busy timeout.
+
+Removing the repeated setup reduced median measured open/setup time by roughly
+70--80 microseconds for queries and about 20--30 microseconds for updates. It
+did not produce a consistent end-to-end difference: at 10,000 records query
+medians were 11.24 ms with repeated setup and 11.20 ms production-like, while
+update medians were 3.07 and 3.05 ms. The 100-record results were likewise
+effectively tied once outliers were retained.
+
+This is not a reason to retain setup on every invocation. Production should
+establish schema and rollback journal mode during initialization/migration,
+validate the schema version cheaply on every open, and reserve connection-local
+durability settings for connections that need them. Queries should open an
+existing database read-only, validate without migrating, and keep the
+already-required `DEFERRED` transaction around both the global tick and record
+rows. Updates should remain read-write with `synchronous=FULL` and `BEGIN
+IMMEDIATE`; writable initialization is responsible for any required migration.
+
+The production-like 100 ms busy timeout completed all ordinary concurrency
+tests and the 100-round stress run without losing an update. This is evidence
+that the bound is ample for the synthetic workload, not a final user-experience
+measurement. Task 6 should make the tracking timeout operation-specific and
+treat contention as a droppable visit; explicit administrative operations may
+justify a longer bound. The prototype's 30-second timeout must not carry into
+the synchronous Fish tracking hook.
+
+`synchronous=FULL` remains the recommendation because it already produced
+acceptable update latency. `NORMAL` and `EXTRA` were deliberately not measured:
+neither can change the current decision. No page-size, cache, memory-map,
+temporary-storage, auto-vacuum, or speculative-index tuning was performed.
+Those settings remain defaults unless a production workload establishes a
+specific problem.
 
 The original stripped release harness was 496,032 bytes without SQLite and
 2,244,384 bytes with the default bundled SQLite build, an incremental increase

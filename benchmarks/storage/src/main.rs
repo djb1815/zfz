@@ -73,8 +73,31 @@ fn run() -> Result<(), Error> {
             #[cfg(feature = "sqlite")]
             "sqlite-delete" => SqliteStore::new(root, JournalMode::Delete).compact(&mut timings)?,
             #[cfg(feature = "sqlite")]
+            "sqlite-delete-without-rowid" => {
+                SqliteStore::without_rowid(root, JournalMode::Delete).compact(&mut timings)?;
+            }
+            #[cfg(feature = "sqlite")]
+            "sqlite-delete-production" => {
+                SqliteStore::production_like(root, JournalMode::Delete).compact(&mut timings)?;
+            }
+            #[cfg(feature = "sqlite")]
             "sqlite-wal" => SqliteStore::new(root, JournalMode::Wal).compact(&mut timings)?,
             _ => unreachable!("backend was already validated"),
+        },
+        "vacuum" => match backend {
+            #[cfg(feature = "sqlite")]
+            "sqlite-delete" => SqliteStore::new(root, JournalMode::Delete).vacuum(&mut timings)?,
+            #[cfg(feature = "sqlite")]
+            "sqlite-delete-without-rowid" => {
+                SqliteStore::without_rowid(root, JournalMode::Delete).vacuum(&mut timings)?;
+            }
+            #[cfg(feature = "sqlite")]
+            "sqlite-delete-production" => {
+                SqliteStore::production_like(root, JournalMode::Delete).vacuum(&mut timings)?;
+            }
+            #[cfg(feature = "sqlite")]
+            "sqlite-wal" => SqliteStore::new(root, JournalMode::Wal).vacuum(&mut timings)?,
+            _ => return Err(Error::Invalid("vacuum requires a SQLite backend".into())),
         },
         "verify" => {
             let state = store.verify()?;
@@ -105,6 +128,16 @@ fn store(backend: &str, root: &Path) -> Result<Box<dyn Store>, Error> {
         "journal" => Ok(Box::new(JournalStore::new(root))),
         #[cfg(feature = "sqlite")]
         "sqlite-delete" => Ok(Box::new(SqliteStore::new(root, JournalMode::Delete))),
+        #[cfg(feature = "sqlite")]
+        "sqlite-delete-without-rowid" => Ok(Box::new(SqliteStore::without_rowid(
+            root,
+            JournalMode::Delete,
+        ))),
+        #[cfg(feature = "sqlite")]
+        "sqlite-delete-production" => Ok(Box::new(SqliteStore::production_like(
+            root,
+            JournalMode::Delete,
+        ))),
         #[cfg(feature = "sqlite")]
         "sqlite-wal" => Ok(Box::new(SqliteStore::new(root, JournalMode::Wal))),
         _ => Err(Error::Invalid(format!("unknown backend {backend:?}"))),
@@ -139,7 +172,10 @@ fn copy_store(backend: &str, source: &Path, destination: &Path) -> Result<(), Er
     fs::create_dir_all(destination)?;
     let names: &[&str] = match backend {
         "journal" => &["snapshot", "journal", "lock", "snapshot.new"],
-        "sqlite-delete" | "sqlite-wal" => &[
+        "sqlite-delete"
+        | "sqlite-delete-without-rowid"
+        | "sqlite-delete-production"
+        | "sqlite-wal" => &[
             "history.sqlite3",
             "history.sqlite3-journal",
             "history.sqlite3-wal",
@@ -163,6 +199,8 @@ fn copy_store(backend: &str, source: &Path, destination: &Path) -> Result<(), Er
 }
 
 fn usage() -> &'static str {
-    "usage: storage-benchmark <init|query|update|burst|prepare-replay|copy|compact|verify|bytes> \
-     <journal|sqlite-delete|sqlite-wal> <store-directory> [argument]"
+    "usage: storage-benchmark \
+     <init|query|update|burst|prepare-replay|copy|compact|vacuum|verify|bytes> \
+     <journal|sqlite-delete|sqlite-delete-without-rowid|sqlite-delete-production|sqlite-wal> \
+     <store-directory> [argument]"
 }

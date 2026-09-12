@@ -10,6 +10,14 @@ fn binary() -> &'static str {
     env!("CARGO_BIN_EXE_zfz-storage-benchmark")
 }
 
+const BACKENDS: [&str; 5] = [
+    "journal",
+    "sqlite-delete",
+    "sqlite-delete-without-rowid",
+    "sqlite-delete-production",
+    "sqlite-wal",
+];
+
 fn temporary(name: &str) -> PathBuf {
     std::env::temp_dir().join(format!("zfz-process-{name}-{}", std::process::id()))
 }
@@ -39,7 +47,7 @@ fn verify(backend: &str, root: &Path) -> (u64, usize) {
 
 #[test]
 fn concurrent_process_writers_do_not_lose_updates() {
-    for backend in ["journal", "sqlite-delete", "sqlite-wal"] {
+    for backend in BACKENDS {
         let root = temporary(backend);
         let _ = fs::remove_dir_all(&root);
         run(&["init", backend, root.to_str().unwrap(), "100"]);
@@ -95,7 +103,7 @@ fn reader_writer_overlap_round(backend: &'static str, round: usize) {
 
 #[test]
 fn concurrent_readers_and_reader_writer_overlap_see_valid_state() {
-    for backend in ["journal", "sqlite-delete", "sqlite-wal"] {
+    for backend in BACKENDS {
         reader_writer_overlap_round(backend, 0);
     }
 }
@@ -104,7 +112,7 @@ fn concurrent_readers_and_reader_writer_overlap_see_valid_state() {
 #[ignore = "explicit task-5 stress experiment"]
 fn reader_writer_overlap_survives_one_hundred_rounds() {
     for round in 1..=100 {
-        for backend in ["journal", "sqlite-delete", "sqlite-wal"] {
+        for backend in BACKENDS {
             reader_writer_overlap_round(backend, round);
         }
     }
@@ -120,6 +128,26 @@ fn interrupted_updates_recover_and_accept_the_next_update() {
         ("journal", "journal-synced", Some(true)),
         ("sqlite-delete", "sqlite-before-commit", Some(false)),
         ("sqlite-delete", "sqlite-after-commit", Some(true)),
+        (
+            "sqlite-delete-without-rowid",
+            "sqlite-before-commit",
+            Some(false),
+        ),
+        (
+            "sqlite-delete-without-rowid",
+            "sqlite-after-commit",
+            Some(true),
+        ),
+        (
+            "sqlite-delete-production",
+            "sqlite-before-commit",
+            Some(false),
+        ),
+        (
+            "sqlite-delete-production",
+            "sqlite-after-commit",
+            Some(true),
+        ),
         ("sqlite-wal", "sqlite-before-commit", Some(false)),
         ("sqlite-wal", "sqlite-after-commit", Some(true)),
     ];

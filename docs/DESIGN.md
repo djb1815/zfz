@@ -572,10 +572,43 @@ The production records table should use its path primary key directly with
 `WITHOUT ROWID`. A post-benchmark audit showed that the prototype's ordinary
 rowid table stored paths in both the table and its automatic unique index;
 removing that duplication brought SQLite storage approximately level with the
-custom snapshot. The bundled build should also disable optional SQLite
-facilities zfz does not use. Normal optimisation remains the default because
-size-optimising all Rust code materially slowed matching and ranking; C-only
-size optimisation remains a later distribution trade-off.
+custom snapshot. A follow-up across every benchmark size found no write
+regression and modestly faster full queries as histories grew, confirming it as
+the production schema rather than merely a size optimisation candidate.
+
+Production connections should have operation-specific roles:
+
+- initialization/migration opens read-write/create, establishes the schema and
+  rollback journal mode, and records the schema version;
+- queries open an existing database read-only and use one `DEFERRED`
+  transaction across the global tick and records so they observe one snapshot;
+- tracking updates open an existing database read-write, set
+  `synchronous=FULL`, and use `BEGIN IMMEDIATE` for the clock and record update;
+- connection-local busy handling remains necessary, but the automatic tracking
+  path should wait for no more than approximately 100 ms and may drop a visit
+  on `SQLITE_BUSY` rather than visibly block shell navigation. Explicit
+  administrative operations may use a separately justified longer timeout.
+
+The prototype's repeated `PRAGMA journal_mode=DELETE` and `CREATE TABLE IF NOT
+EXISTS` checks cost only tens of microseconds and did not produce a consistent
+end-to-end latency difference. They should still move out of ordinary queries
+and updates because journal mode and schema changes belong to initialization or
+migration, not because this is a material performance optimisation. Writable
+initialization should perform migrations; every ordinary open should cheaply
+validate the schema version before using it.
+
+`synchronous=FULL` is the measured durability baseline. Process interruption
+and recovery are experimentally covered; catastrophic power-loss simulation is
+not claimed. `NORMAL`, `EXTRA`, page size, cache size, memory mapping, temporary
+storage, auto-vacuum, and speculative indexes are deliberately not selected or
+benchmarked because current latency leaves no decision-driving reason to tune
+them. Reclamation can be revisited if production removal workloads demonstrate
+meaningful persistent free space.
+
+The bundled build should disable optional SQLite facilities zfz does not use.
+Normal optimisation remains the default because size-optimising all Rust code
+materially slowed matching and ranking; C-only size optimisation remains a
+later distribution trade-off.
 
 Full methodology and results are in [`storage.md`](storage.md).
 
