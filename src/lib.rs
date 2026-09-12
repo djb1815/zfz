@@ -6,3 +6,4 @@
 pub mod frecency;
 pub mod matcher;
 pub mod ranking;
+pub mod storage;

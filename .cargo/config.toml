@@ -1,0 +1,5 @@
+[env]
+# Keep the bundled SQLite build focused on zfz's ordinary table/transaction
+# workload. These facilities were excluded by the storage size audit and are
+# not exposed by zfz or rusqlite's selected feature set.
+LIBSQLITE3_FLAGS = { value = "-USQLITE_ENABLE_FTS3 -USQLITE_ENABLE_FTS3_PARENTHESIS -USQLITE_ENABLE_FTS5 -USQLITE_ENABLE_RTREE -USQLITE_ENABLE_DBSTAT_VTAB -USQLITE_ENABLE_LOAD_EXTENSION -USQLITE_ENABLE_COLUMN_METADATA -USQLITE_ENABLE_STAT4 -DSQLITE_OMIT_FTS3 -DSQLITE_OMIT_FTS4 -DSQLITE_OMIT_FTS5 -DSQLITE_OMIT_RTREE -DSQLITE_OMIT_DBSTAT_VTAB -DSQLITE_OMIT_LOAD_EXTENSION -DSQLITE_OMIT_DECLTYPE", force = true }

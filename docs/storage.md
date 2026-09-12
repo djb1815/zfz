@@ -176,7 +176,7 @@ update, integrity, crash-recovery, concurrent-writer, and reader/writer-overlap
 tests all passed. The explicit stress run completed 100 rounds per backend with
 eight readers and eight writers in each round. The size reduction therefore
 comes without an observed performance or correctness trade-off and justifies
-adoption in task 6.
+adoption in the production schema.
 
 ### Connection setup and production recommendations
 
@@ -206,10 +206,10 @@ IMMEDIATE`; writable initialization is responsible for any required migration.
 The production-like 100 ms busy timeout completed all ordinary concurrency
 tests and the 100-round stress run without losing an update. This is evidence
 that the bound is ample for the synthetic workload, not a final user-experience
-measurement. Task 6 should make the tracking timeout operation-specific and
-treat contention as a droppable visit; explicit administrative operations may
-justify a longer bound. The prototype's 30-second timeout must not carry into
-the synchronous Fish tracking hook.
+measurement. The production implementation makes the tracking timeout
+operation-specific and treats contention as a droppable visit; explicit
+administrative operations may justify a longer bound. The prototype's 30-second
+timeout must not carry into the synchronous Fish tracking hook.
 
 `synchronous=FULL` remains the recommendation because it already produced
 acceptable update latency. `NORMAL` and `EXTRA` were deliberately not measured:

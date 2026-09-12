@@ -1,6 +1,6 @@
 # Fuzzy Matcher Prototype
 
-Task 3 uses [`fuzzy-matcher` 0.3.7](https://crates.io/crates/fuzzy-matcher),
+The matcher uses [`fuzzy-matcher` 0.3.7](https://crates.io/crates/fuzzy-matcher),
 specifically `SkimMatcherV2`. It is the smallest suitable Rust dependency for
 the prototype: it supplies a Smith-Waterman-based, fzf V2-style optimal
 ordered-character matcher and returns a score independently of eligibility.
@@ -13,7 +13,7 @@ public API exposes:
 - `match_terms(path, terms)` for AND semantics, a sum of per-term scores, and
   the separately observable `terms_in_path_order` signal.
 
-The aggregate fuzzy score is not numerically combined with frecency. The Task 4
+The aggregate fuzzy score is not numerically combined with frecency. The
 ranking experiment selected history-primary ordering with fuzzy score as an
 exact-tie signal; see [`ranking.md`](ranking.md).
 

@@ -1,4 +1,4 @@
-//! Benchmark-only persistence prototypes for task 5.
+//! Benchmark-only persistence prototypes.
 
 pub mod dataset;
 pub mod journal;
