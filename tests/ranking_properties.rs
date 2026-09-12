@@ -27,11 +27,7 @@ fn candidate<'a>(
 ) -> Candidate<'a> {
     Candidate {
         path,
-        record: Record {
-            visits,
-            last_tick,
-            score,
-        },
+        record: Record::new(visits, last_tick, score).unwrap(),
         fuzzy_score,
         terms_in_path_order: true,
     }
@@ -122,15 +118,15 @@ fn canonical_history_is_monotonic_across_a_generated_score_grid() {
                     assert_eq!(frecency[0].path, "/higher");
 
                     let mut frequency = [
-                        candidate("/lower", 1.0, lower, 1, lower_fuzzy),
-                        candidate("/higher", 1.0, higher, 1, higher_fuzzy),
+                        candidate("/lower", 1.0, lower + 1, TICK, lower_fuzzy),
+                        candidate("/higher", 1.0, higher + 1, TICK, higher_fuzzy),
                     ];
                     rank_canonical(&mut frequency, HistoryMode::Frequency);
                     assert_eq!(frequency[0].path, "/higher");
 
                     let mut recency = [
-                        candidate("/lower", 1.0, 1, lower, lower_fuzzy),
-                        candidate("/higher", 1.0, 1, higher, higher_fuzzy),
+                        candidate("/lower", 1.0, 1, lower + 1, lower_fuzzy),
+                        candidate("/higher", 1.0, 1, higher + 1, higher_fuzzy),
                     ];
                     rank_canonical(&mut recency, HistoryMode::Recency);
                     assert_eq!(recency[0].path, "/higher");
@@ -177,7 +173,7 @@ fn eligible_strategies_ignore_an_inferior_added_candidate() {
 
     let first = candidate("/first", 10.0, 10, 90, 10);
     let second = candidate("/second", 9.0, 9, 80, 100);
-    let inferior = candidate("/inferior", 0.0, 0, 0, 0);
+    let inferior = candidate("/inferior", 0.0, 1, 1, 0);
     let mut canonical_pair = [first, second];
     let mut canonical_expanded = [first, second, inferior];
     rank_canonical(&mut canonical_pair, HistoryMode::Frecency);
@@ -243,11 +239,7 @@ fn rank_fusion_is_history_monotonic_across_tested_weights() {
                     .unwrap();
 
                 let mut after = baseline;
-                after[0].record = Record {
-                    score: 7.0,
-                    visits: 7,
-                    last_tick: 70,
-                };
+                after[0].record = Record::new(7, 70, 7.0).unwrap();
                 rank_experimental(&mut after, mode, TICK, strategy, TermOrderPolicy::Ignore);
                 let after_position = paths(&after)
                     .iter()

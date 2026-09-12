@@ -1,6 +1,4 @@
-use zfz::frecency::Record;
-
-use crate::{DirectoryRecord, State};
+use crate::{DirectoryRecord, State, record_from_parts};
 
 const COMPONENTS: &[&str] = &[
     "projects",
@@ -22,7 +20,11 @@ const COMPONENTS: &[&str] = &[
 /// Produces deterministic datasets without retaining visit logs.
 #[must_use]
 pub fn generate(count: usize) -> State {
-    let tick = count as u64 * 8 + 100;
+    let tick = if count == 0 {
+        100
+    } else {
+        (count as u64 * 8 + 100).max(250 + count.saturating_sub(1) as u64)
+    };
     let mut records = Vec::with_capacity(count);
     for index in 0..count {
         let a = COMPONENTS[index % COMPONENTS.len()];
@@ -42,11 +44,8 @@ pub fn generate(count: usize) -> State {
         let score = 1.0 + (index.wrapping_mul(13) % 120) as f64 / 10.0;
         records.push(DirectoryRecord {
             path,
-            history: Record {
-                visits,
-                last_tick,
-                score,
-            },
+            history: record_from_parts(visits, last_tick, score)
+                .expect("generated records have valid histories"),
         });
     }
     records.sort_by(|left, right| left.path.cmp(&right.path));

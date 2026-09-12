@@ -10,23 +10,62 @@ use fuzzy_matcher::{FuzzyMatcher, skim::SkimMatcherV2};
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TermMatch {
     /// Higher values represent a more natural fuzzy alignment.
-    pub score: i64,
+    score: i64,
     /// Character offsets in the candidate that form the selected alignment.
-    pub positions: Vec<usize>,
+    positions: Vec<usize>,
+}
+
+impl TermMatch {
+    /// Returns the fuzzy-match quality for this term.
+    #[must_use]
+    pub const fn score(&self) -> i64 {
+        self.score
+    }
+
+    /// Returns the character offsets that form this term's alignment.
+    #[must_use]
+    pub fn positions(&self) -> &[usize] {
+        &self.positions
+    }
 }
 
 /// The independently observable result of matching all query terms.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CandidateMatch {
     /// The optimal alignment for each term, in query order.
-    pub terms: Vec<TermMatch>,
+    terms: Vec<TermMatch>,
     /// The sum of the per-term fuzzy scores. It is not a final ranking score.
-    pub fuzzy_score: i64,
+    fuzzy_score: i64,
     /// Whether the selected term alignments occur in query order in the path.
     ///
     /// This is deliberately observational: it does not affect eligibility or
     /// `fuzzy_score` until ranking experiments establish that it is useful.
-    pub terms_in_path_order: bool,
+    terms_in_path_order: bool,
+}
+
+impl CandidateMatch {
+    /// Returns the optimal alignment for each term, in query order.
+    #[must_use]
+    pub fn terms(&self) -> &[TermMatch] {
+        &self.terms
+    }
+
+    /// Returns the sum of the per-term fuzzy scores.
+    ///
+    /// This is not a final ranking score.
+    #[must_use]
+    pub const fn fuzzy_score(&self) -> i64 {
+        self.fuzzy_score
+    }
+
+    /// Returns whether the selected term alignments occur in query order.
+    ///
+    /// This is observational and does not affect match eligibility or the
+    /// fuzzy score.
+    #[must_use]
+    pub const fn terms_in_path_order(&self) -> bool {
+        self.terms_in_path_order
+    }
 }
 
 fn matcher() -> SkimMatcherV2 {
@@ -91,7 +130,7 @@ where
 mod tests {
     use pretty_assertions::assert_eq;
 
-    use super::{fuzzy_score, match_terms, matches};
+    use super::{TermMatch, fuzzy_score, match_terms, matches};
 
     #[test]
     fn contiguous_matches_score_higher_than_gapped_matches() {
@@ -119,8 +158,8 @@ mod tests {
         let reverse_order = match_terms("/home/alice/projects/zfz/Documents", ["docs", "proj"])
             .expect("both terms match");
 
-        assert!(in_order.terms_in_path_order);
-        assert!(!reverse_order.terms_in_path_order);
+        assert!(in_order.terms_in_path_order());
+        assert!(!reverse_order.terms_in_path_order());
         assert!(match_terms("/home/alice/Documents", ["docs", "proj"]).is_none());
     }
 
@@ -152,8 +191,8 @@ mod tests {
             .expect("path matches every term");
 
         assert_eq!(
-            result.fuzzy_score,
-            result.terms.iter().map(|term| term.score).sum()
+            result.fuzzy_score(),
+            result.terms().iter().map(TermMatch::score).sum()
         );
     }
 }

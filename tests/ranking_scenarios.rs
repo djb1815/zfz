@@ -55,11 +55,12 @@ fn scenarios() -> BTreeMap<String, Vec<FixtureRecord>> {
                 mode,
                 current_tick: fields[2].parse().unwrap(),
                 path: fields[3].to_owned(),
-                record: Record {
-                    visits: fields[4].parse().unwrap(),
-                    last_tick: fields[5].parse().unwrap(),
-                    score: fields[6].parse().unwrap(),
-                },
+                record: Record::new(
+                    fields[4].parse().unwrap(),
+                    fields[5].parse().unwrap(),
+                    fields[6].parse().unwrap(),
+                )
+                .unwrap_or_else(|error| panic!("invalid fixture record: {error}")),
                 terms: fields[7].to_owned(),
                 expectation,
             });
@@ -77,8 +78,8 @@ fn experimental_candidates(records: &[FixtureRecord]) -> Vec<ExperimentalCandida
             ExperimentalCandidate {
                 path: &fixture.path,
                 record: fixture.record,
-                fuzzy_score: matched.fuzzy_score,
-                terms_in_path_order: matched.terms_in_path_order,
+                fuzzy_score: matched.fuzzy_score(),
+                terms_in_path_order: matched.terms_in_path_order(),
             }
         })
         .collect()

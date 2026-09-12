@@ -8,7 +8,7 @@ pub mod sqlite;
 use std::{fmt, io, path::Path, time::Duration};
 
 use zfz::{
-    frecency::{Record, first_visit},
+    frecency::Record,
     matcher::match_terms,
     ranking::{Candidate, HistoryMode, rank},
 };
@@ -40,13 +40,15 @@ impl State {
             if record.path.as_bytes().contains(&0) {
                 return Err(Error::Invalid("path contains NUL".into()));
             }
-            if record.history.last_tick > self.tick {
+            if record.history.last_tick() > self.tick {
                 return Err(Error::Invalid(format!(
                     "{} has last tick {} after global tick {}",
-                    record.path, record.history.last_tick, self.tick
+                    record.path,
+                    record.history.last_tick(),
+                    self.tick
                 )));
             }
-            if !record.history.score.is_finite() {
+            if !stored_score(record.history).is_finite() {
                 return Err(Error::Invalid("record score is not finite".into()));
             }
             if previous.is_some_and(|value| value >= record.path.as_str()) {
@@ -69,20 +71,49 @@ impl State {
             .binary_search_by(|record| record.path.as_str().cmp(path))
         {
             Ok(index) => {
-                self.records[index].history = self.records[index]
-                    .history
-                    .visit(self.tick, zfz::frecency::DEFAULT_LAMBDA);
+                self.records[index].history = visit(self.records[index].history, self.tick)?;
             }
             Err(index) => self.records.insert(
                 index,
                 DirectoryRecord {
                     path: path.to_owned(),
-                    history: first_visit(self.tick),
+                    history: first_visit(self.tick)?,
                 },
             ),
         }
         Ok(())
     }
+}
+
+/// Builds a validated history record from benchmark persistence data.
+pub(crate) fn record_from_parts(visits: u64, last_tick: u64, score: f64) -> Result<Record, Error> {
+    Record::new(visits, last_tick, score)
+        .map_err(|error| Error::Invalid(format!("invalid record: {error}")))
+}
+
+/// Records an initial visit using the production frecency model's public API.
+pub(crate) fn first_visit(tick: u64) -> Result<Record, Error> {
+    record_from_parts(1, tick, 1.0)
+}
+
+/// Applies one visit using the production frecency model's default decay.
+pub(crate) fn visit(record: Record, tick: u64) -> Result<Record, Error> {
+    if tick <= record.last_tick() {
+        return Err(Error::Invalid(
+            "each visit must advance the event clock".into(),
+        ));
+    }
+    let visits = record
+        .visits()
+        .checked_add(1)
+        .ok_or_else(|| Error::Invalid("visit count overflow".into()))?;
+    record_from_parts(visits, tick, record.score_at(tick) + 1.0)
+}
+
+/// Returns the score as persisted at a record's most recent event-clock tick.
+#[must_use]
+pub(crate) fn stored_score(record: Record) -> f64 {
+    record.score_at(record.last_tick())
 }
 
 #[derive(Debug, Default, Clone, Copy)]
@@ -145,7 +176,7 @@ pub fn query<'a>(state: &'a State, terms: &[&str]) -> Result<Option<&'a str>, Er
             candidates.push(Candidate::new(
                 &record.path,
                 record.history,
-                matched.fuzzy_score,
+                matched.fuzzy_score(),
             ));
         }
     }
@@ -170,9 +201,7 @@ pub fn directory_bytes(path: &Path) -> Result<u64, Error> {
 
 #[cfg(test)]
 mod tests {
-    use zfz::frecency::first_visit;
-
-    use super::{DirectoryRecord, State};
+    use super::{DirectoryRecord, State, first_visit};
 
     #[test]
     fn event_clock_overflow_is_rejected_without_mutation() {
@@ -180,7 +209,7 @@ mod tests {
             tick: u64::MAX,
             records: vec![DirectoryRecord {
                 path: "/existing".into(),
-                history: first_visit(1),
+                history: first_visit(1).unwrap(),
             }],
         };
         let original = state.clone();
@@ -195,11 +224,11 @@ mod tests {
             records: vec![
                 DirectoryRecord {
                     path: "/same".into(),
-                    history: first_visit(1),
+                    history: first_visit(1).unwrap(),
                 },
                 DirectoryRecord {
                     path: "/same".into(),
-                    history: first_visit(1),
+                    history: first_visit(1).unwrap(),
                 },
             ],
         };
