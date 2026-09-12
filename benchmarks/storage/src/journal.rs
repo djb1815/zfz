@@ -8,7 +8,9 @@ use std::{
 use crc32fast::hash;
 use fs2::FileExt;
 
-use crate::{DirectoryRecord, Error, State, Store, Timings, directory_bytes};
+use crate::{
+    DirectoryRecord, Error, State, Store, Timings, directory_bytes, record_from_parts, stored_score,
+};
 
 const SNAPSHOT_MAGIC: &[u8; 8] = b"ZFZSNP01";
 const MAX_PATH_BYTES: usize = 16 * 1024 * 1024;
@@ -227,7 +229,7 @@ fn replay_journal(state: &mut State, bytes: &[u8]) -> Result<usize, Error> {
         let mut cursor = Cursor::new(payload);
         let tick = cursor.u64()?;
         let record = cursor.record()?;
-        if !cursor.remaining().is_empty() || record.history.last_tick != tick {
+        if !cursor.remaining().is_empty() || record.history.last_tick() != tick {
             return Err(Error::Invalid("invalid journal sequence".into()));
         }
         // A crash after atomic snapshot replacement but before journal reset
@@ -254,9 +256,9 @@ fn encode_record(bytes: &mut Vec<u8>, record: &DirectoryRecord) -> Result<(), Er
     }
     put_u32(bytes, path.len() as u32);
     bytes.extend_from_slice(path);
-    put_u64(bytes, record.history.visits);
-    put_u64(bytes, record.history.last_tick);
-    put_u64(bytes, record.history.score.to_bits());
+    put_u64(bytes, record.history.visits());
+    put_u64(bytes, record.history.last_tick());
+    put_u64(bytes, stored_score(record.history).to_bits());
     Ok(())
 }
 
@@ -351,11 +353,7 @@ impl<'a> Cursor<'a> {
         let score = f64::from_bits(self.u64()?);
         Ok(DirectoryRecord {
             path,
-            history: zfz::frecency::Record {
-                visits,
-                last_tick,
-                score,
-            },
+            history: record_from_parts(visits, last_tick, score)?,
         })
     }
 }

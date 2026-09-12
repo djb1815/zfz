@@ -14,7 +14,7 @@ use std::{
 
 use rusqlite::{Connection, ErrorCode, OpenFlags, OptionalExtension, TransactionBehavior, params};
 
-use crate::frecency::{DEFAULT_LAMBDA, Record, first_visit};
+use crate::frecency::{Record, first_visit};
 
 const SCHEMA_VERSION: i32 = 1;
 const TRACKING_BUSY_TIMEOUT: Duration = Duration::from_millis(100);
@@ -27,24 +27,60 @@ const DATABASE_FILE_NAME: &str = "history.sqlite3";
 #[derive(Debug, Clone, PartialEq)]
 pub struct DirectoryRecord {
     /// Path text exactly as supplied by the caller.
-    pub path: String,
+    path: String,
     /// Incremental frecency state for `path`.
-    pub history: Record,
+    history: Record,
+}
+
+impl DirectoryRecord {
+    /// Returns the path text exactly as supplied by the caller.
+    #[must_use]
+    pub fn path(&self) -> &str {
+        &self.path
+    }
+
+    /// Returns the incremental frecency state used to rank this path.
+    #[must_use]
+    pub const fn history(&self) -> Record {
+        self.history
+    }
+
+    /// Consumes this record, returning its preserved path and frecency state.
+    #[must_use]
+    pub fn into_parts(self) -> (String, Record) {
+        (self.path, self.history)
+    }
 }
 
 /// A consistent snapshot of the global clock and every stored directory.
 #[derive(Debug, Clone, PartialEq)]
 pub struct History {
     /// The latest recorded navigation event.
-    pub tick: u64,
+    tick: u64,
     /// Records sorted by their preserved path.
-    pub records: Vec<DirectoryRecord>,
+    records: Vec<DirectoryRecord>,
 }
 
 impl History {
-    /// Returns an empty, never-written history.
+    /// Returns the latest recorded navigation event.
     #[must_use]
-    pub const fn empty() -> Self {
+    pub const fn tick(&self) -> u64 {
+        self.tick
+    }
+
+    /// Returns records sorted by their preserved path.
+    #[must_use]
+    pub fn records(&self) -> &[DirectoryRecord] {
+        &self.records
+    }
+
+    /// Consumes this snapshot, returning its records in preserved-path order.
+    #[must_use]
+    pub fn into_records(self) -> Vec<DirectoryRecord> {
+        self.records
+    }
+
+    const fn empty() -> Self {
         Self {
             tick: 0,
             records: Vec::new(),
@@ -184,12 +220,7 @@ impl Database {
         let records = records
             .into_iter()
             .map(|(path, visits, last_tick, score)| {
-                let history = Record {
-                    visits,
-                    last_tick,
-                    score,
-                };
-                validate_record(&path, history, tick)?;
+                let history = record_from_storage(&path, visits, last_tick, score, tick)?;
                 Ok(DirectoryRecord { path, history })
             })
             .collect::<Result<Vec<_>, StorageError>>()?;
@@ -267,14 +298,12 @@ impl Database {
                     ))
                 },
             )
-            .optional()?
-            .map(|(visits, last_tick, score)| Record {
-                visits,
-                last_tick,
-                score,
-            });
+            .optional()?;
         let history = match existing {
-            Some(record) => updated_record(record, tick, next_tick)?,
+            Some((visits, last_tick, score)) => {
+                let record = record_from_storage(path, visits, last_tick, score, tick)?;
+                updated_record(record, next_tick)?
+            }
             None => first_visit(next_tick),
         };
         transaction.execute(
@@ -285,7 +314,12 @@ impl Database {
             "INSERT INTO records(path, visits, last_tick, score) VALUES (?1, ?2, ?3, ?4)
              ON CONFLICT(path) DO UPDATE SET visits = excluded.visits,
                  last_tick = excluded.last_tick, score = excluded.score",
-            params![path, history.visits, history.last_tick, history.score,],
+            params![
+                path,
+                history.visits(),
+                history.last_tick(),
+                history.stored_score(),
+            ],
         )?;
         transaction.commit()?;
         Ok(())
@@ -377,37 +411,48 @@ fn validate_path(path: &str) -> Result<(), StorageError> {
     Ok(())
 }
 
-fn validate_record(path: &str, record: Record, tick: u64) -> Result<(), StorageError> {
+fn record_from_storage(
+    path: &str,
+    visits: u64,
+    last_tick: u64,
+    score: f64,
+    tick: u64,
+) -> Result<Record, StorageError> {
     validate_path(path)?;
-    if record.last_tick > tick {
+    if visits == 0 {
+        return Err(StorageError::InvalidData(format!("{path} has zero visits")));
+    }
+    if last_tick == 0 {
         return Err(StorageError::InvalidData(format!(
-            "{path} has last tick {} after global tick {tick}",
-            record.last_tick
+            "{path} has zero last tick"
         )));
     }
-    if !record.score.is_finite() {
+    if last_tick > tick {
+        return Err(StorageError::InvalidData(format!(
+            "{path} has last tick {last_tick} after global tick {tick}",
+        )));
+    }
+    if !score.is_finite() {
         return Err(StorageError::InvalidData(
             "record score is not finite".into(),
         ));
     }
-    Ok(())
+    if score < 0.0 {
+        return Err(StorageError::InvalidData("record score is negative".into()));
+    }
+    Record::new(visits, last_tick, score)
+        .map_err(|error| StorageError::InvalidData(format!("{path} has invalid frecency: {error}")))
 }
 
-fn updated_record(
-    record: Record,
-    current_tick: u64,
-    next_tick: u64,
-) -> Result<Record, StorageError> {
-    // The decay formula belongs to frecency, but this adapter protects that
-    // pure logic from persisted invalid state and SQLite's signed-integer
-    // boundary. Keeping it beside the read/update/write transaction makes the
-    // atomic storage invariant explicit.
-    validate_record("stored record", record, current_tick)?;
-    if record.visits >= MAX_SQLITE_INTEGER {
+fn updated_record(record: Record, next_tick: u64) -> Result<Record, StorageError> {
+    // The decay formula belongs to frecency. This adapter enforces SQLite's
+    // signed-integer boundary and keeps the validated read/update/write
+    // sequence inside one transaction.
+    if record.visits() >= MAX_SQLITE_INTEGER {
         return Err(StorageError::CounterOverflow);
     }
-    let updated = record.visit(next_tick, DEFAULT_LAMBDA);
-    if !updated.score.is_finite() {
+    let updated = record.visit(next_tick);
+    if !updated.stored_score().is_finite() {
         return Err(StorageError::InvalidData(
             "updated frecency score is not finite".into(),
         ));
@@ -470,10 +515,10 @@ mod tests {
         );
         database.add("/symlink spelling/a path\n").unwrap();
         let history = database.load_candidates().unwrap();
-        assert_eq!(history.tick, 2);
-        assert_eq!(history.records.len(), 1);
-        assert_eq!(history.records[0].path, "/symlink spelling/a path\n");
-        assert_eq!(history.records[0].history.visits, 2);
+        assert_eq!(history.tick(), 2);
+        assert_eq!(history.records().len(), 1);
+        assert_eq!(history.records()[0].path(), "/symlink spelling/a path\n");
+        assert_eq!(history.records()[0].history().visits(), 2);
         fs::remove_dir_all(database.path().parent().unwrap()).unwrap();
     }
 
@@ -488,9 +533,9 @@ mod tests {
         let paths: Vec<_> = database
             .load_candidates()
             .unwrap()
-            .records
+            .into_records()
             .into_iter()
-            .map(|record| record.path)
+            .map(|record| record.into_parts().0)
             .collect();
         assert_eq!(paths, ["/workshop/a", "/workspace"]);
         fs::remove_dir_all(database.path().parent().unwrap()).unwrap();
@@ -520,8 +565,8 @@ mod tests {
         }
         assert_eq!(database.remove_recursive("/").unwrap(), 3);
         let history = database.load_candidates().unwrap();
-        assert_eq!(history.tick, 3);
-        assert!(history.records.is_empty());
+        assert_eq!(history.tick(), 3);
+        assert!(history.records().is_empty());
         fs::remove_dir_all(database.path().parent().unwrap()).unwrap();
     }
 
@@ -535,9 +580,9 @@ mod tests {
         let paths: Vec<_> = database
             .load_candidates()
             .unwrap()
-            .records
+            .into_records()
             .into_iter()
-            .map(|record| record.path)
+            .map(|record| record.into_parts().0)
             .collect();
         assert_eq!(paths, ["/workspace"]);
         fs::remove_dir_all(database.path().parent().unwrap()).unwrap();
@@ -563,8 +608,8 @@ mod tests {
             worker.join().unwrap();
         }
         let history = database.load_candidates().unwrap();
-        assert_eq!(history.tick, 9);
-        assert_eq!(history.records.len(), 9);
+        assert_eq!(history.tick(), 9);
+        assert_eq!(history.records().len(), 9);
         fs::remove_dir_all(database.path().parent().unwrap()).unwrap();
     }
 
@@ -582,9 +627,9 @@ mod tests {
                 .unwrap();
         }
         let history = database.load_candidates().unwrap();
-        assert_eq!(history.tick, 1);
-        assert_eq!(history.records.len(), 1);
-        assert_eq!(history.records[0].path, "/committed");
+        assert_eq!(history.tick(), 1);
+        assert_eq!(history.records().len(), 1);
+        assert_eq!(history.records()[0].path(), "/committed");
         fs::remove_dir_all(database.path().parent().unwrap()).unwrap();
     }
 
@@ -601,6 +646,27 @@ mod tests {
             Err(StorageError::Sql(_))
         ));
         fs::remove_dir_all(database.path().parent().unwrap()).unwrap();
+    }
+
+    #[test]
+    fn impossible_persisted_records_are_rejected() {
+        for (name, update) in [
+            ("zero-visits", "UPDATE records SET visits = 0"),
+            ("zero-last-tick", "UPDATE records SET last_tick = 0"),
+            ("visits-after-tick", "UPDATE records SET visits = 2"),
+            ("negative-score", "UPDATE records SET score = -0.1"),
+            ("nonfinite-score", "UPDATE records SET score = 1e999"),
+        ] {
+            let database = database(name);
+            database.add("/corrupt").unwrap();
+            let connection = Connection::open(database.path()).unwrap();
+            connection.execute(update, []).unwrap();
+            assert!(matches!(
+                database.load_candidates(),
+                Err(StorageError::InvalidData(_))
+            ));
+            fs::remove_dir_all(database.path().parent().unwrap()).unwrap();
+        }
     }
 
     #[test]
