@@ -16,10 +16,12 @@ use rusqlite::{Connection, ErrorCode, OpenFlags, OptionalExtension, TransactionB
 
 use crate::frecency::{DEFAULT_LAMBDA, Record, first_visit};
 
-const SCHEMA_VERSION: u32 = 1;
+const SCHEMA_VERSION: i32 = 1;
 const TRACKING_BUSY_TIMEOUT: Duration = Duration::from_millis(100);
 const ADMINISTRATIVE_BUSY_TIMEOUT: Duration = Duration::from_secs(1);
 const MAX_SQLITE_INTEGER: u64 = i64::MAX as u64;
+const STATE_DIRECTORY: &str = "zfz";
+const DATABASE_FILE_NAME: &str = "history.sqlite3";
 
 /// A preserved directory path and the history used to rank it.
 #[derive(Debug, Clone, PartialEq)]
@@ -69,7 +71,7 @@ pub enum StorageError {
     /// No usable XDG state directory can be derived from the environment.
     StateHomeUnavailable,
     /// The database uses a schema this program cannot safely interpret.
-    UnsupportedSchema { found: u32 },
+    UnsupportedSchema { found: i32 },
     /// Stored state or a caller-supplied path violates an invariant.
     InvalidData(String),
     /// The event clock or a visit count cannot be represented safely.
@@ -132,10 +134,15 @@ impl Database {
     /// Returns the default XDG state-file location.
     pub fn default_path() -> Result<PathBuf, StorageError> {
         if let Some(state_home) = env::var_os("XDG_STATE_HOME") {
-            return Ok(PathBuf::from(state_home).join("zfz/history.sqlite3"));
+            return Ok(PathBuf::from(state_home)
+                .join(STATE_DIRECTORY)
+                .join(DATABASE_FILE_NAME));
         }
         let home = env::var_os("HOME").ok_or(StorageError::StateHomeUnavailable)?;
-        Ok(PathBuf::from(home).join(".local/state/zfz/history.sqlite3"))
+        Ok(PathBuf::from(home)
+            .join(".local/state")
+            .join(STATE_DIRECTORY)
+            .join(DATABASE_FILE_NAME))
     }
 
     /// Returns the filesystem location used by this handle.
@@ -165,8 +172,8 @@ impl Database {
             .query_map([], |row| {
                 Ok((
                     row.get::<_, String>(0)?,
-                    row.get::<_, i64>(1)?,
-                    row.get::<_, i64>(2)?,
+                    row.get::<_, u64>(1)?,
+                    row.get::<_, u64>(2)?,
                     row.get::<_, f64>(3)?,
                 ))
             })?
@@ -178,8 +185,8 @@ impl Database {
             .into_iter()
             .map(|(path, visits, last_tick, score)| {
                 let history = Record {
-                    visits: sqlite_integer_to_u64(visits, "visit count")?,
-                    last_tick: sqlite_integer_to_u64(last_tick, "last visit tick")?,
+                    visits,
+                    last_tick,
                     score,
                 };
                 validate_record(&path, history, tick)?;
@@ -225,14 +232,15 @@ impl Database {
         }
         let mut connection = self.open_for_write(ADMINISTRATIVE_BUSY_TIMEOUT)?;
         let transaction = connection.transaction_with_behavior(TransactionBehavior::Immediate)?;
-        let removed = if path == "/" {
-            transaction.execute("DELETE FROM records WHERE path LIKE '/%'", [])?
+        let root = recursive_root(path);
+        let removed = if root == "/" {
+            transaction.execute("DELETE FROM records", [])?
         } else {
-            let prefix = format!("{path}/");
+            let prefix = format!("{root}/");
             transaction.execute(
                 "DELETE FROM records
                  WHERE path = ?1 OR substr(path, 1, length(?2)) = ?2",
-                params![path, prefix],
+                params![root, prefix],
             )?
         };
         transaction.commit()?;
@@ -243,46 +251,41 @@ impl Database {
         let mut connection = self.open_for_write(timeout)?;
         let transaction = connection.transaction_with_behavior(TransactionBehavior::Immediate)?;
         let tick = read_tick(&transaction)?;
-        let next_tick = tick.checked_add(1).ok_or(StorageError::CounterOverflow)?;
+        if tick >= MAX_SQLITE_INTEGER {
+            return Err(StorageError::CounterOverflow);
+        }
+        let next_tick = tick + 1;
         let existing = transaction
             .query_row(
                 "SELECT visits, last_tick, score FROM records WHERE path = ?1",
                 [path],
                 |row| {
                     Ok((
-                        row.get::<_, i64>(0)?,
-                        row.get::<_, i64>(1)?,
+                        row.get::<_, u64>(0)?,
+                        row.get::<_, u64>(1)?,
                         row.get::<_, f64>(2)?,
                     ))
                 },
             )
             .optional()?
-            .map(|(visits, last_tick, score)| {
-                Ok::<_, StorageError>(Record {
-                    visits: sqlite_integer_to_u64(visits, "visit count")?,
-                    last_tick: sqlite_integer_to_u64(last_tick, "last visit tick")?,
-                    score,
-                })
-            })
-            .transpose()?;
+            .map(|(visits, last_tick, score)| Record {
+                visits,
+                last_tick,
+                score,
+            });
         let history = match existing {
             Some(record) => updated_record(record, tick, next_tick)?,
             None => first_visit(next_tick),
         };
         transaction.execute(
             "UPDATE metadata SET tick = ?1 WHERE singleton = 1",
-            [u64_to_sqlite_integer(next_tick, "event clock")?],
+            [next_tick],
         )?;
         transaction.execute(
             "INSERT INTO records(path, visits, last_tick, score) VALUES (?1, ?2, ?3, ?4)
              ON CONFLICT(path) DO UPDATE SET visits = excluded.visits,
                  last_tick = excluded.last_tick, score = excluded.score",
-            params![
-                path,
-                u64_to_sqlite_integer(history.visits, "visit count")?,
-                u64_to_sqlite_integer(history.last_tick, "last visit tick")?,
-                history.score,
-            ],
+            params![path, history.visits, history.last_tick, history.score,],
         )?;
         transaction.commit()?;
         Ok(())
@@ -340,9 +343,10 @@ fn ensure_schema(connection: &mut Connection) -> Result<(), StorageError> {
     Ok(())
 }
 
-fn schema_version(connection: &Connection) -> Result<u32, StorageError> {
-    let version: i64 = connection.query_row("PRAGMA user_version", [], |row| row.get(0))?;
-    u32::try_from(version).map_err(|_| StorageError::InvalidData("invalid schema version".into()))
+fn schema_version(connection: &Connection) -> Result<i32, StorageError> {
+    connection
+        .query_row("PRAGMA user_version", [], |row| row.get(0))
+        .map_err(StorageError::from)
 }
 
 fn validate_schema(connection: &Connection) -> Result<(), StorageError> {
@@ -355,14 +359,18 @@ fn validate_schema(connection: &Connection) -> Result<(), StorageError> {
 }
 
 fn read_tick(connection: &Connection) -> Result<u64, StorageError> {
-    let tick: i64 =
+    Ok(
         connection.query_row("SELECT tick FROM metadata WHERE singleton = 1", [], |row| {
             row.get(0)
-        })?;
-    sqlite_integer_to_u64(tick, "event clock")
+        })?,
+    )
 }
 
 fn validate_path(path: &str) -> Result<(), StorageError> {
+    if path.is_empty() {
+        return Err(StorageError::InvalidData("path is empty".into()));
+    }
+    // Rust strings and SQLite TEXT can contain NUL, but shell paths cannot.
     if path.as_bytes().contains(&0) {
         return Err(StorageError::InvalidData("path contains NUL".into()));
     }
@@ -390,6 +398,10 @@ fn updated_record(
     current_tick: u64,
     next_tick: u64,
 ) -> Result<Record, StorageError> {
+    // The decay formula belongs to frecency, but this adapter protects that
+    // pure logic from persisted invalid state and SQLite's signed-integer
+    // boundary. Keeping it beside the read/update/write transaction makes the
+    // atomic storage invariant explicit.
     validate_record("stored record", record, current_tick)?;
     if record.visits >= MAX_SQLITE_INTEGER {
         return Err(StorageError::CounterOverflow);
@@ -403,13 +415,9 @@ fn updated_record(
     Ok(updated)
 }
 
-fn sqlite_integer_to_u64(value: i64, field: &str) -> Result<u64, StorageError> {
-    u64::try_from(value).map_err(|_| StorageError::InvalidData(format!("{field} is negative")))
-}
-
-fn u64_to_sqlite_integer(value: u64, field: &str) -> Result<i64, StorageError> {
-    i64::try_from(value)
-        .map_err(|_| StorageError::InvalidData(format!("{field} exceeds SQLite range")))
+fn recursive_root(path: &str) -> &str {
+    let root = path.trim_end_matches('/');
+    if root.is_empty() { "/" } else { root }
 }
 
 fn is_busy(error: &StorageError) -> bool {
@@ -432,7 +440,7 @@ mod tests {
     use pretty_assertions::assert_eq;
     use rusqlite::{Connection, TransactionBehavior};
 
-    use super::{Database, History, StorageError, VisitOutcome};
+    use super::{DATABASE_FILE_NAME, Database, History, StorageError, VisitOutcome};
 
     fn database(name: &str) -> Database {
         let unique = SystemTime::now()
@@ -440,7 +448,9 @@ mod tests {
             .unwrap()
             .as_nanos();
         Database::new(
-            std::env::temp_dir().join(format!("zfz-storage-{name}-{unique}/history.sqlite3")),
+            std::env::temp_dir()
+                .join(format!("zfz-storage-{name}-{unique}"))
+                .join(DATABASE_FILE_NAME),
         )
     }
 
@@ -489,15 +499,21 @@ mod tests {
     #[test]
     fn invalid_paths_are_rejected_before_creating_a_database() {
         let database = database("nul");
+        for path in ["", "bad\0path"] {
+            assert!(matches!(
+                database.add(path),
+                Err(StorageError::InvalidData(_))
+            ));
+        }
         assert!(matches!(
-            database.add("bad\0path"),
+            database.remove_recursive(""),
             Err(StorageError::InvalidData(_))
         ));
         assert!(!database.path().exists());
     }
 
     #[test]
-    fn recursive_root_removal_includes_root_and_every_absolute_path() {
+    fn recursive_root_removal_clears_all_history() {
         let database = database("root-remove");
         for path in ["/", "/one", "/two/three"] {
             database.add(path).unwrap();
@@ -506,6 +522,24 @@ mod tests {
         let history = database.load_candidates().unwrap();
         assert_eq!(history.tick, 3);
         assert!(history.records.is_empty());
+        fs::remove_dir_all(database.path().parent().unwrap()).unwrap();
+    }
+
+    #[test]
+    fn recursive_removal_treats_a_trailing_slash_as_the_same_selector() {
+        let database = database("trailing-slash");
+        for path in ["/work", "/work/", "/work/child", "/workspace"] {
+            database.add(path).unwrap();
+        }
+        assert_eq!(database.remove_recursive("/work/").unwrap(), 3);
+        let paths: Vec<_> = database
+            .load_candidates()
+            .unwrap()
+            .records
+            .into_iter()
+            .map(|record| record.path)
+            .collect();
+        assert_eq!(paths, ["/workspace"]);
         fs::remove_dir_all(database.path().parent().unwrap()).unwrap();
     }
 
@@ -551,6 +585,36 @@ mod tests {
         assert_eq!(history.tick, 1);
         assert_eq!(history.records.len(), 1);
         assert_eq!(history.records[0].path, "/committed");
+        fs::remove_dir_all(database.path().parent().unwrap()).unwrap();
+    }
+
+    #[test]
+    fn negative_persisted_integers_are_rejected() {
+        let database = database("negative-integer");
+        database.add("/corrupt").unwrap();
+        let connection = Connection::open(database.path()).unwrap();
+        connection
+            .execute("UPDATE records SET visits = -1", [])
+            .unwrap();
+        assert!(matches!(
+            database.load_candidates(),
+            Err(StorageError::Sql(_))
+        ));
+        fs::remove_dir_all(database.path().parent().unwrap()).unwrap();
+    }
+
+    #[test]
+    fn sqlite_integer_limit_is_reported_as_counter_overflow() {
+        let database = database("counter-overflow");
+        database.add("/existing").unwrap();
+        let connection = Connection::open(database.path()).unwrap();
+        connection
+            .execute("UPDATE metadata SET tick = ?1", [i64::MAX])
+            .unwrap();
+        assert!(matches!(
+            database.add("/new"),
+            Err(StorageError::CounterOverflow)
+        ));
         fs::remove_dir_all(database.path().parent().unwrap()).unwrap();
     }
 

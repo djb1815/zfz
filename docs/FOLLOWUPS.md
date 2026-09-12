@@ -3,6 +3,14 @@
 Deferred work and design questions that should be revisited when the relevant
 prototype or benchmark results are available.
 
+## Confirm destructive root history removal in the CLI
+
+**When:** Adding the CLI command for recursive history removal.
+
+`Database::remove_recursive("/")` deliberately clears all history. Before the
+CLI exposes that selector, require an explicit warning and confirmation so an
+accidental root argument cannot silently erase the database.
+
 ## Reassess the fuzzy-matcher dependency
 
 **When:** After matcher and storage benchmarks, before committing to the

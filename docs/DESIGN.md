@@ -622,7 +622,8 @@ The default database is
 return an empty history without creating files; the first write creates and
 initializes it. Explicit add has the same clock-advancing semantics as a
 tracked visit. Exact removal deletes one preserved path; recursive removal
-deletes that path and slash-boundary descendants, never lexical lookalikes.
+deletes that path and slash-boundary descendants, never lexical lookalikes. A
+trailing slash on a recursive-removal target is ignored, except for `/` itself.
 
 Automatic tracking waits at most 100 ms for a SQLite lock and reports a
 droppable contention result. Explicit add and remove operations wait at most
