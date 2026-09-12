@@ -104,15 +104,15 @@ The benchmark must use the same matching and ranking implementation for both. Hy
 
 ### 5.1 Benchmark harness
 
-- [ ] Generate realistic synthetic datasets containing:
+- [x] Generate realistic synthetic datasets containing:
   - 100 records;
   - 1,000 records;
   - 5,000 records;
   - 10,000 records;
   - 50,000 records;
   - 100,000 records.
-- [ ] Measure release builds only.
-- [ ] Report distributions where practical: median, p95, p99, minimum, maximum.
+- [x] Measure release builds only.
+- [x] Report distributions where practical: median, p95, p99, minimum, maximum.
 
 ### 5.2 Read path
 
@@ -122,13 +122,13 @@ Model:
 
 Include:
 
-- [ ] process startup;
-- [ ] storage open/load;
-- [ ] decoding/parsing;
-- [ ] fuzzy matching;
-- [ ] ranking;
-- [ ] best-result output;
-- [ ] process exit.
+- [x] process startup;
+- [x] storage open/load;
+- [x] decoding/parsing;
+- [x] fuzzy matching;
+- [x] ranking;
+- [x] best-result output;
+- [x] process exit.
 
 Record storage-related timings separately where practical.
 
@@ -136,33 +136,46 @@ Record storage-related timings separately where practical.
 
 Model one Fish `$PWD` update.
 
-- [ ] Measure single updates.
-- [ ] Measure bursts of 10, 100, and 1,000 updates.
-- [ ] Include open/load, update, commit/flush, close, and process exit.
+- [x] Measure single updates.
+- [x] Measure bursts of 10, 100, and 1,000 updates.
+- [x] Include open/load, update, commit/flush, close, and process exit.
 
 ### 5.4 Two-file-specific tests
 
-- [ ] Benchmark journal replay.
-- [ ] Benchmark snapshot compaction.
-- [ ] Benchmark atomic snapshot replacement.
-- [ ] Explore reasonable compaction triggers.
+- [x] Benchmark journal replay.
+- [x] Benchmark snapshot compaction.
+- [x] Benchmark atomic snapshot replacement.
+- [x] Explore reasonable compaction triggers.
 
 ### 5.5 Concurrency and crash safety
 
 For both implementations:
 
-- [ ] concurrent readers;
-- [ ] reader/writer overlap;
-- [ ] concurrent writers;
-- [ ] interruption during writes/commit;
-- [ ] verification that the next invocation can recover and continue.
+- [x] concurrent readers;
+- [x] reader/writer overlap;
+- [x] concurrent writers;
+- [x] interruption during writes/commit;
+- [x] verification that the next invocation can recover and continue.
 
 ### 5.6 Secondary measurements
 
-- [ ] Persistent storage size.
-- [ ] SQLite-related release binary size increase.
-- [ ] Warm-cache behavior.
-- [ ] Cold-cache behavior where reproducibly measurable.
+- [x] Persistent storage size.
+- [x] SQLite-related release binary size increase.
+- [x] Warm-cache behavior.
+- [x] Cold-cache behavior where reproducibly measurable.
+
+### 5.7 Production-relevant SQLite follow-up
+
+- [x] Compare the original rowid schema with `WITHOUT ROWID` at every dataset
+  size for full queries, single updates, and database size.
+- [x] Assess the cost of repeated journal-mode and schema setup separately from
+  the schema change.
+- [x] Exercise the candidate schema and production-like connection policy with
+  the concurrency and crash-recovery suite.
+- [x] Record intended read/write connection roles, a bounded tracking timeout,
+  and the durability baseline for task 6.
+- [x] Explicitly defer unrelated SQLite tuning that cannot affect the storage
+  decision.
 
 ### Deliverable
 
