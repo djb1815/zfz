@@ -47,7 +47,7 @@ The intended responsibility split is:
 Fish integration
   ├─ observe $PWD changes
   ├─ invoke tracking/update operation
-  ├─ expose user-facing `z` function/command
+  ├─ expose the configured user-facing function/command
   ├─ perform `cd` to selected path
   ├─ invoke/present fzf where appropriate
   └─ provide Fish completion integration (later)
@@ -101,15 +101,21 @@ This is intentional: zfz models the paths the user navigates through, not the un
 
 ### 4.3 Navigation interface
 
-The Fish-facing `z` wrapper should be thin. For normal navigation it should obtain a selected path from the compiled core and then perform `cd` itself.
-
-The exact executable/wrapper naming and transport mechanism are implementation details, but an echo-style interface is expected to be sufficient conceptually:
+The Fish-facing wrapper is the private autoloaded `__zfz_jump` function. The
+startup integration aliases `z` to it by default, or uses the command name in
+`ZFZ_CMD` when that variable is set. An explicitly empty value disables alias
+creation. `ZFZ_CMD=zfz` intentionally shadows the executable; `command zfz`
+remains available. The wrapper obtains a selected path through the executable's
+hidden `--jump` mode and performs `cd` itself:
 
 ```fish
-cd (zfz --echo docs)
+z docs
 ```
 
-The real wrapper must handle failure and unusual path contents safely rather than blindly relying on this illustrative form.
+`--jump` requires query terms, accepts ranking and current-directory modifiers,
+and emits exactly one NUL-terminated path. It rejects output and administrative
+options before accessing persistent state. The wrapper decodes exactly one
+record and passes it to a quoted `builtin cd`.
 
 If no suitable match exists, the command must fail without changing the current directory.
 
@@ -299,7 +305,7 @@ That same ordering should feed all consumption modes:
 
 ```text
 matching + ranking
-  ├─ normal navigation  → select top result
+  ├─ internal --jump    → select top result for shell navigation
   ├─ --list             → emit ordered results
   └─ --interactive      → present ordered candidates to fzf
 ```
@@ -330,7 +336,7 @@ release comparison on the current macOS development host it added 16,752 bytes
 no-argument measurements showed median increases of 0.029 ms and 0.045 ms
 respectively.
 
-The common form remains:
+The common shell form remains:
 
 ```text
 z <query>
@@ -396,17 +402,17 @@ The earlier draft spelling `-f` is superseded by `-i`.
 ### 8.6 Echo mode
 
 ```fish
-z --echo docs
+zfz --echo docs
 ```
 
 should resolve the best matching path and emit it without changing directory.
 
-This is also a likely primitive for the Fish wrapper.
+Output operations belong to the executable, not the navigation alias.
 
 ### 8.7 List mode
 
 ```fish
-z --list docs
+zfz --list docs
 ```
 
 is a first-class composability feature, not merely diagnostic output.
@@ -424,8 +430,9 @@ Normal output emits one preserved path per line. Spaces and shell metacharacters
 are not escaped or reinterpreted. Because a path itself may contain a newline,
 `-0/--null` switches both selected-path and list output to one NUL-terminated
 record per path. Machine consumers must use this mode when arbitrary path names
-are possible. The Fish wrapper always uses it for navigation and feeds the one
-decoded record to a quoted `cd` argument.
+are possible. The Fish wrapper uses the stricter hidden `--jump` operation,
+which always emits one NUL-terminated record, and feeds the decoded path to a
+quoted `cd` argument.
 
 ### 8.8 Administrative operations
 
@@ -450,6 +457,10 @@ at least one term; `--list` accepts optional terms, filtering normally when they
 are present and emitting the entire history when they are absent.
 Interactive-mode conflicts will be established when that deferred mode is
 implemented.
+
+The hidden `--jump` mode accepts only query terms, `--current`, and ranking
+modifiers. It rejects output and administrative options before execution and is
+omitted from public help.
 
 ## 9. Interactive fzf Integration
 
@@ -889,7 +900,7 @@ cli/
 
 fish/
   PWD event hook
-  user-facing z wrapper
+  private navigation function + configured alias
   fzf integration
   completions (later)
 
@@ -965,7 +976,7 @@ The first usable version should demonstrate that:
 - `z <query>` supports ordered-character fuzzy AND matching;
 - the top result is ranked predictably using the selected initial history strategy;
 - `z` with no args and `z -i <query>` can select through fzf;
-- `--echo` and `--list` provide useful non-navigation interfaces;
+- `zfz --echo` and `zfz --list` provide useful non-navigation interfaces;
 - ignored exact paths, including `$HOME` by default, are respected;
 - persistence is safe under normal concurrent invocations and process interruption;
 - realistic histories remain comfortably fast;

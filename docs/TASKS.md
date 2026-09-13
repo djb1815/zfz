@@ -249,10 +249,14 @@ Keep this layer intentionally thin.
 - [ ] Do not wrap `cd`.
 - [ ] Do not depend on prompt execution.
 - [ ] Do not introduce a daemon.
-- [ ] Implement the user-facing `z` Fish function that:
+- [x] Implement the private `__zfz_jump` Fish function and user-facing alias (named by
+  `ZFZ_CMD`, defaulting to `z`, with an empty value disabling the alias) that:
   - queries the executable;
   - obtains the selected path;
   - performs `cd` in Fish.
+- [x] Keep output and administrative operations on the `zfz` executable rather
+  than classifying options in Fish.
+- [x] Reserve no-argument alias invocation for the interactive workflow.
 - [ ] Verify that symlink paths remain uncanonicalized end-to-end.
 
 ### Deliverable
