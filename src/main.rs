@@ -1,3 +1,6 @@
 fn main() {
-    println!("zfz: directory-jumping core is not implemented yet");
+    if let Err(error) = zfz::cli::run_from_env() {
+        eprintln!("zfz: {error}");
+        std::process::exit(error.exit_code().into());
+    }
 }

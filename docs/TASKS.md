@@ -212,25 +212,25 @@ A production-quality persistence layer supporting the operations required by the
 
 Build the core executable behavior around the established matcher, ranking system, and persistence layer.
 
-- [ ] `z <query>` resolution path in the executable.
-- [ ] `--echo` / `-e`.
-- [ ] `--list` / `-l`.
-- [ ] `--rank` / `-r`.
-- [ ] `--time` / `-t`.
-- [ ] `--add`.
-- [ ] `--remove` / `-x`.
-- [ ] `--remove-recursive` / `-X`.
-- [ ] `--help` / `-h`.
-- [ ] `-c` current-directory restriction.
-- [ ] Choose the long-form name for `-c`.
-- [ ] Define and validate incompatible option combinations.
-- [ ] Decide whether administrative operations remain flags or become subcommands.
+- [x] `z <query>` resolution path in the executable.
+- [x] `--echo` / `-e`.
+- [x] `--list` / `-l`.
+- [x] `--rank` / `-r`.
+- [x] `--time` / `-t`.
+- [x] `--add` / `-a`.
+- [x] `--remove` / `-x`.
+- [x] `--remove-recursive` / `-X`.
+- [x] `--help` / `-h`.
+- [x] `-c` current-directory restriction.
+- [x] Choose the long-form name for `-c`.
+- [x] Define and validate incompatible option combinations.
+- [x] Decide whether administrative operations remain flags or become subcommands.
 
 ### Output safety
 
-- [ ] Define safe normal output semantics for paths containing whitespace.
-- [ ] Decide whether `--list` requires a null-delimited/machine-oriented mode.
-- [ ] Ensure the Fish wrapper can consume selected paths without unsafe parsing.
+- [x] Define safe normal output semantics for paths containing whitespace.
+- [x] Decide whether `--list` requires a null-delimited/machine-oriented mode.
+- [x] Ensure the Fish wrapper can consume selected paths without unsafe parsing.
 
 ### Deliverable
 

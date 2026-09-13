@@ -161,6 +161,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "lexopt"
+version = "0.3.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "803ec87c9cfb29b9d2633f20cba1f488db3fd53f2158b1024cbefb47ba05d413"
+
+[[package]]
 name = "libsqlite3-sys"
 version = "0.35.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -450,6 +456,7 @@ name = "zfz"
 version = "0.1.0"
 dependencies = [
  "fuzzy-matcher",
+ "lexopt",
  "pretty_assertions",
  "rstest",
  "rusqlite",

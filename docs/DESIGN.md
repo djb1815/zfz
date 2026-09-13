@@ -320,6 +320,16 @@ The CLI should feel familiar to users of rupa `z`, `zsh-z`, and `ze`, but exact 
 
 Short options should be retained where useful and familiar, while long options improve discoverability.
 
+Argument tokenisation uses `lexopt` 0.3. It owns conventional lexical details
+such as short-option clusters, attached values, and `--`, while zfz retains its
+typed argument model, static help, and application-specific validation. This
+split avoids maintaining a bespoke shell-argument parser without bringing in a
+larger declarative CLI framework. `lexopt` has no transitive dependencies. In a
+release comparison on the current macOS development host it added 16,752 bytes
+(about 1.0%) to the stripped executable; paired 1,000-run `--help` and
+no-argument measurements showed median increases of 0.029 ms and 0.045 ms
+respectively.
+
 The common form remains:
 
 ```text
@@ -330,20 +340,26 @@ z <query>
 
 | Short | Long | Purpose |
 |---|---|---|
-| — | `--add` | Explicitly add/update a directory in the database |
-| `-c` | **TBD** | Restrict matches to directories beneath the current directory |
+| `-a` | `--add` | Explicitly add/update a directory in the database |
+| `-c` | `--current` | Restrict matches to directories beneath the current directory |
 | `-e` | `--echo` | Print the selected path without navigating |
 | `-i` | `--interactive` | Interactively select a result using fzf |
 | `-h` | `--help` | Display help |
 | `-l` | `--list` | List matching directories without navigating |
+| `-0` | `--null` | Terminate output records with NUL |
+| — | `--force` | Confirm recursive removal of all history |
 | `-r` | `--rank` | Rank by visit frequency |
 | `-t` | `--time` | Rank by recency |
 | `-x` | `--remove` | Remove one directory from the database |
 | `-X` | `--remove-recursive` | Remove a directory and its descendants |
 
-The long name for `-c` remains open.
+`--current` names `-c` directly and avoids overloading “child” or “subdirectory”
+terminology when the current directory itself is also eligible.
 
-Administrative operations may later become subcommands (`z add`, `z remove`) if this proves clearer without introducing ambiguity with query terms. Do not add subcommands merely for stylistic consistency.
+Administrative operations remain flags. This preserves the familiar query
+shape without reserving ordinary terms such as `add` and `remove` as command
+names. The Fish integration additionally uses an internal `--track PATH`
+operation, whose bounded contention policy differs from explicit `--add`.
 
 ### 8.3 Normal navigation
 
@@ -404,7 +420,12 @@ It should:
 
 A user should be able to feed this output into custom fzf pipelines or other CLI tools.
 
-Output must therefore have a safe story for whitespace and unusual characters. Whether normal line-oriented output is supplemented by a null-delimited/machine mode remains open.
+Normal output emits one preserved path per line. Spaces and shell metacharacters
+are not escaped or reinterpreted. Because a path itself may contain a newline,
+`-0/--null` switches both selected-path and list output to one NUL-terminated
+record per path. Machine consumers must use this mode when arbitrary path names
+are possible. The Fish wrapper always uses it for navigation and feeds the one
+decoded record to a quoted `cd` argument.
 
 ### 8.8 Administrative operations
 
@@ -415,10 +436,17 @@ Required behaviours:
 - `-X/--remove-recursive PATH`: remove the path and its descendants.
 
 Recursive removal is an explicit database operation and is unrelated to ignored-path semantics.
+Recursive removal of `/` clears all history and is therefore refused unless the
+same invocation includes `--force` as explicit confirmation.
 
 ### 8.9 Option conflicts
 
-The precise validation rules for combinations such as `--list`, `--echo`, and `--interactive` are not yet fixed. They should be made explicit before the CLI is considered stable.
+`--rank` and `--time` are mutually exclusive, as are `--echo` and `--list`.
+Administrative operations are mutually exclusive and cannot be combined with
+query, ranking, restriction, or output options. `--force` is valid only with
+`--remove-recursive /`. A selected-path query requires at least one term;
+`--list` accepts no terms and then emits the entire history. Interactive-mode
+conflicts will be established when that deferred mode is implemented.
 
 ## 9. Interactive fzf Integration
 
@@ -910,15 +938,6 @@ The following are intentionally unresolved and should be updated as implementati
 
 - What database/storage location and migration/versioning strategy should be used?
 
-### CLI and output
-
-- What is the long-form name for `-c`?
-- Options, subcommands, or both for administrative operations?
-- What output contract should `--list` provide for arbitrary path contents?
-- Is a null-delimited mode needed?
-- Which output-mode flags conflict?
-- Are `--rank` and `--time` strictly mutually exclusive?
-
 ### Configuration and lifecycle
 
 - Configuration file format and location.
@@ -929,9 +948,9 @@ The following are intentionally unresolved and should be updated as implementati
 
 ### Fish/fzf integration
 
-- Exact executable/wrapper naming and return-path protocol.
 - How cancellation/no-selection should map to exit codes.
-- How arbitrary path contents are transferred safely through fzf and Fish.
+- How arbitrary path contents are transferred safely through fzf once the
+  NUL-delimited executable-to-Fish boundary reaches the interactive workflow.
 - Future completion integration design.
 
 ## 18. Definition of a Successful Initial Implementation
