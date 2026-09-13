@@ -3,6 +3,18 @@
 Deferred work and design questions that should be revisited when the relevant
 prototype or benchmark results are available.
 
+## Add shell-specific test commands
+
+**When:** When adding another supported shell, or when reorganising the CLI
+integration tests.
+
+Move the Fish-backed cases out of `tests/cli.rs` into a dedicated integration
+test target and expose it through a `mise` task such as `test-fish`. Keep the
+full CI check installing and testing every supported shell, while allowing
+contributors to run only the integration tests for shells available locally.
+Avoid test-name filtering because it is easy for newly added shell tests to be
+silently omitted.
+
 ## Extend navigation wrappers beyond Fish
 
 **When:** When Bash or Zsh integration, or the interactive fzf workflow, is

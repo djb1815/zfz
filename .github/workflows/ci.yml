@@ -14,5 +14,8 @@ jobs:
     steps:
       - uses: actions/checkout@v5
       - uses: jdx/mise-action@v4
+      # Fish is not preinstalled on Ubuntu runners but is required by shell tests.
+      - run: sudo apt-get update
+      - run: sudo apt-get install --yes fish
       - run: mise run check
       - run: mise run build-release
