@@ -444,9 +444,12 @@ same invocation includes `--force` as explicit confirmation.
 `--rank` and `--time` are mutually exclusive, as are `--echo` and `--list`.
 Administrative operations are mutually exclusive and cannot be combined with
 query, ranking, restriction, or output options. `--force` is valid only with
-`--remove-recursive /`. A selected-path query requires at least one term;
-`--list` accepts no terms and then emits the entire history. Interactive-mode
-conflicts will be established when that deferred mode is implemented.
+`--remove-recursive`; it is required when the removal path is `/` and is a
+harmless no-op for narrower recursive removals. A selected-path query requires
+at least one term; `--list` accepts optional terms, filtering normally when they
+are present and emitting the entire history when they are absent.
+Interactive-mode conflicts will be established when that deferred mode is
+implemented.
 
 ## 9. Interactive fzf Integration
 

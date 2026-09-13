@@ -263,10 +263,10 @@ impl Database {
         }
         let mut connection = self.open_for_write(ADMINISTRATIVE_BUSY_TIMEOUT)?;
         let transaction = connection.transaction_with_behavior(TransactionBehavior::Immediate)?;
-        let root = recursive_root(path);
-        let removed = if root == "/" {
+        let removed = if recursive_removal_clears_all(path) {
             transaction.execute("DELETE FROM records", [])?
         } else {
+            let root = recursive_root(path);
             let prefix = format!("{root}/");
             transaction.execute(
                 "DELETE FROM records
@@ -463,6 +463,11 @@ fn updated_record(record: Record, next_tick: u64) -> Result<Record, StorageError
 fn recursive_root(path: &str) -> &str {
     let root = path.trim_end_matches('/');
     if root.is_empty() { "/" } else { root }
+}
+
+/// Returns whether a recursive-removal selector clears the entire history.
+pub(crate) fn recursive_removal_clears_all(path: &str) -> bool {
+    recursive_root(path) == "/"
 }
 
 fn is_busy(error: &StorageError) -> bool {
