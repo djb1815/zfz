@@ -3,6 +3,7 @@
 //! Shell integration, persistence, matching, and ranking will remain separate
 //! as those components are prototyped and benchmarked.
 
+pub mod cli;
 pub mod frecency;
 pub mod matcher;
 pub mod ranking;
