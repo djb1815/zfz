@@ -114,6 +114,7 @@ enum Operation {
 struct Arguments {
     operation: Operation,
     terms: Vec<String>,
+    jump: bool,
     list: bool,
     echo: bool,
     current: bool,
@@ -127,6 +128,7 @@ impl Default for Arguments {
         Self {
             operation: Operation::Query,
             terms: Vec::new(),
+            jump: false,
             list: false,
             echo: false,
             current: false,
@@ -166,6 +168,7 @@ fn parse(
         .map_err(|error| CliError::Usage(error.to_string()))?
     {
         match argument {
+            Long("jump") => parsed.jump = true,
             Short('h') | Long("help") => parsed.operation = Operation::Help,
             Short('e') | Long("echo") => parsed.echo = true,
             Short('l') | Long("list") => parsed.list = true,
@@ -242,6 +245,21 @@ fn set_operation(parsed: &mut Arguments, operation: Operation) -> Result<(), Cli
 }
 
 fn validate(parsed: Arguments) -> Result<Arguments, CliError> {
+    if parsed.jump {
+        if !matches!(parsed.operation, Operation::Query)
+            || parsed.list
+            || parsed.echo
+            || parsed.null
+            || parsed.force
+        {
+            return Err(CliError::Usage(
+                "--jump cannot be combined with output or administrative options".into(),
+            ));
+        }
+        if parsed.terms.is_empty() {
+            return Err(CliError::Usage("--jump requires a query".into()));
+        }
+    }
     if matches!(parsed.operation, Operation::Help) {
         return Ok(parsed);
     }
@@ -343,7 +361,11 @@ fn execute_query(arguments: Arguments, database: &Database) -> Result<Vec<u8>, C
         .collect::<Vec<_>>();
     rank(&mut candidates, arguments.history_mode, history.tick())?;
 
-    let separator = if arguments.null { b'\0' } else { b'\n' };
+    let separator = if arguments.jump || arguments.null {
+        b'\0'
+    } else {
+        b'\n'
+    };
     if arguments.list {
         let mut output = Vec::new();
         for candidate in candidates {
@@ -400,6 +422,32 @@ mod tests {
         assert!(parsed.null);
         assert_eq!(parsed.history_mode, HistoryMode::Frequency);
         assert_eq!(parsed.terms, ["docs", "proj"]);
+    }
+
+    #[rstest]
+    #[case::current(&["--jump", "--current", "query"])]
+    #[case::current_short(&["--jump", "-c", "query"])]
+    #[case::rank(&["--jump", "--rank", "query"])]
+    #[case::rank_short(&["--jump", "-r", "query"])]
+    #[case::time(&["--jump", "--time", "query"])]
+    #[case::time_short(&["--jump", "-t", "query"])]
+    fn jump_accepts_navigation_modifiers(#[case] values: &[&str]) {
+        let parsed = arguments(values).unwrap();
+        assert!(parsed.jump);
+    }
+
+    #[rstest]
+    #[case::no_query(&["--jump"])]
+    #[case::echo(&["--jump", "--echo", "query"])]
+    #[case::list(&["--jump", "--list", "query"])]
+    #[case::null(&["--jump", "--null", "query"])]
+    #[case::help(&["--jump", "--help"])]
+    #[case::add(&["--jump", "--add", "/path", "query"])]
+    #[case::track(&["--jump", "--track", "/path", "query"])]
+    #[case::remove(&["--jump", "--remove", "/path", "query"])]
+    #[case::remove_recursive(&["--jump", "--remove-recursive", "/path", "query"])]
+    fn jump_rejects_non_navigation_operations(#[case] values: &[&str]) {
+        assert!(matches!(arguments(values), Err(CliError::Usage(_))));
     }
 
     #[rstest]

@@ -3,6 +3,18 @@
 Deferred work and design questions that should be revisited when the relevant
 prototype or benchmark results are available.
 
+## Extend navigation wrappers beyond Fish
+
+**When:** When Bash or Zsh integration, or the interactive fzf workflow, is
+implemented.
+
+Define Bash and Zsh navigation wrappers with the same navigation-only boundary
+as Fish. Before implementation, establish a safe arbitrary-path capture method
+for each shell, decide whether the executable or shell integration owns fzf,
+and specify how cancellation and no-selection map to statuses without changing
+directory. Reassess whether the hidden `--jump` protocol should become a public
+interface once more than one shell consumes it.
+
 ## Reassess the fuzzy-matcher dependency
 
 **When:** After matcher and storage benchmarks, before committing to the
