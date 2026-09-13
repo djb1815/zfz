@@ -52,6 +52,19 @@ fn path_text(path: &Path) -> &str {
 }
 
 #[test]
+fn help_does_not_require_a_state_directory() {
+    let output = Command::new(env!("CARGO_BIN_EXE_zfz"))
+        .arg("--help")
+        .env_remove("XDG_STATE_HOME")
+        .env_remove("HOME")
+        .output()
+        .unwrap();
+
+    assert!(output.status.success());
+    assert!(String::from_utf8(output.stdout).unwrap().contains("Usage:"));
+}
+
+#[test]
 fn executable_adds_queries_lists_and_removes_records() {
     let root = TestDirectory::new("operations");
     let frequent = root.path().join("frequent-docs");

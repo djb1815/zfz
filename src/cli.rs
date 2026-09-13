@@ -11,7 +11,7 @@ use std::{
 use crate::{
     matcher::match_terms,
     ranking::{Candidate, HistoryMode, RankingError, rank},
-    storage::{Database, StorageError, VisitOutcome},
+    storage::{Database, StorageError, VisitOutcome, recursive_removal_clears_all},
 };
 use lexopt::prelude::{Long, Short, Value, ValueExt};
 
@@ -140,6 +140,12 @@ impl Default for Arguments {
 /// Runs the process arguments against the default history database.
 pub fn run_from_env() -> Result<(), CliError> {
     let arguments = parse(env::args_os().skip(1))?;
+    if matches!(arguments.operation, Operation::Help) {
+        return io::stdout()
+            .lock()
+            .write_all(HELP.as_bytes())
+            .map_err(CliError::Output);
+    }
     let database = Database::new(Database::default_path()?);
     let output = execute(arguments, &database)?;
     io::stdout()
@@ -248,7 +254,7 @@ fn validate(parsed: Arguments) -> Result<Arguments, CliError> {
         Operation::Query => {
             if parsed.force {
                 return Err(CliError::Usage(
-                    "--force requires --remove-recursive /".into(),
+                    "--force requires --remove-recursive".into(),
                 ));
             }
             if parsed.terms.is_empty() && !parsed.list {
@@ -261,21 +267,15 @@ fn validate(parsed: Arguments) -> Result<Arguments, CliError> {
             validate_administrative_modifiers(&parsed)?;
             if parsed.force {
                 return Err(CliError::Usage(
-                    "--force requires --remove-recursive /".into(),
+                    "--force requires --remove-recursive".into(),
                 ));
             }
         }
         Operation::RemoveRecursive(path) => {
             validate_administrative_modifiers(&parsed)?;
-            let root = recursive_root(path);
-            if root == "/" && !parsed.force {
+            if recursive_removal_clears_all(path) && !parsed.force {
                 return Err(CliError::Usage(
                     "refusing to clear all history; repeat with --force to confirm".into(),
-                ));
-            }
-            if root != "/" && parsed.force {
-                return Err(CliError::Usage(
-                    "--force is only valid with --remove-recursive /".into(),
                 ));
             }
         }
@@ -307,7 +307,9 @@ fn execute(arguments: Arguments, database: &Database) -> Result<Vec<u8>, CliErro
             Ok(Vec::new())
         }
         Operation::Track(path) => {
-            let _outcome: VisitOutcome = database.record_visit(&path)?;
+            match database.record_visit(&path)? {
+                VisitOutcome::Recorded | VisitOutcome::Contended => {}
+            }
             Ok(Vec::new())
         }
         Operation::Remove(path) => {
@@ -377,14 +379,11 @@ fn current_directory() -> Result<PathBuf, CliError> {
     })
 }
 
-fn recursive_root(path: &str) -> &str {
-    let root = path.trim_end_matches('/');
-    if root.is_empty() { "/" } else { root }
-}
-
 #[cfg(test)]
 mod tests {
     use std::ffi::OsString;
+
+    use rstest::rstest;
 
     use super::{CliError, HistoryMode, Operation, parse};
 
@@ -403,49 +402,48 @@ mod tests {
         assert_eq!(parsed.terms, ["docs", "proj"]);
     }
 
-    #[test]
-    fn accepts_attached_administrative_paths() {
-        assert_eq!(
-            arguments(&["--add=/path with spaces"]).unwrap().operation,
-            Operation::Add("/path with spaces".into())
-        );
-        assert_eq!(
-            arguments(&["-x/path"]).unwrap().operation,
-            Operation::Remove("/path".into())
-        );
-        assert_eq!(
-            arguments(&["-a=/path"]).unwrap().operation,
-            Operation::Add("/path".into())
-        );
+    #[rstest]
+    #[case::long_option(
+        &["--add=/path with spaces"],
+        Operation::Add("/path with spaces".into())
+    )]
+    #[case::short_option(&["-x/path"], Operation::Remove("/path".into()))]
+    #[case::short_option_with_equals(&["-a=/path"], Operation::Add("/path".into()))]
+    fn accepts_attached_administrative_paths(#[case] values: &[&str], #[case] expected: Operation) {
+        assert_eq!(arguments(values).unwrap().operation, expected);
+    }
+
+    #[rstest]
+    #[case::frequency_and_recency(&["-r", "-t", "query"])]
+    #[case::echo_and_list(&["-e", "-l", "query"])]
+    #[case::administrative_operation_and_query(&["--add", "/path", "query"])]
+    #[case::administrative_operation_and_output_modifier(&["--remove", "/path", "--null"])]
+    fn rejects_incompatible_modes_and_operations(#[case] values: &[&str]) {
+        assert!(matches!(arguments(values), Err(CliError::Usage(_))));
+    }
+
+    #[rstest]
+    #[case::unknown_option(&["--unknown"])]
+    #[case::missing_option_value(&["--add"])]
+    #[case::value_on_switch(&["--echo=value", "query"])]
+    fn rejects_malformed_options(#[case] values: &[&str]) {
+        assert!(matches!(arguments(values), Err(CliError::Usage(_))));
     }
 
     #[test]
-    fn rejects_incompatible_modes_and_operations() {
-        for values in [
-            &["-r", "-t", "query"][..],
-            &["-e", "-l", "query"],
-            &["--add", "/path", "query"],
-            &["--remove", "/path", "--null"],
-        ] {
-            assert!(matches!(arguments(values), Err(CliError::Usage(_))));
-        }
-    }
-
-    #[test]
-    fn rejects_unknown_options_missing_values_and_values_on_switches() {
-        for values in [&["--unknown"][..], &["--add"], &["--echo=value", "query"]] {
-            assert!(matches!(arguments(values), Err(CliError::Usage(_))));
-        }
-    }
-
-    #[test]
-    fn root_recursive_removal_requires_explicit_force() {
+    fn force_confirms_root_removal_and_is_optional_for_other_recursive_removals() {
         assert!(matches!(arguments(&["-X", "/"]), Err(CliError::Usage(_))));
         assert!(arguments(&["-X", "////", "--force"]).is_ok());
-        assert!(matches!(
-            arguments(&["-X", "/work", "--force"]),
-            Err(CliError::Usage(_))
-        ));
+        assert!(arguments(&["-X", "/work", "--force"]).is_ok());
+    }
+
+    #[rstest]
+    #[case::query(&["--force", "docs"])]
+    #[case::list(&["--list", "--force"])]
+    #[case::add(&["--add", "/work", "--force"])]
+    #[case::remove_exact(&["--remove", "/work", "--force"])]
+    fn rejects_force_outside_recursive_removal(#[case] values: &[&str]) {
+        assert!(matches!(arguments(values), Err(CliError::Usage(_))));
     }
 
     #[test]
